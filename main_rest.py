@@ -9,12 +9,15 @@ import logging
 import sys
 import threading
 import matplotlib
+import json
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from datetime import datetime
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
+
+STATE_FILE = "bot_state.json"
 
 # --- SETUP LOGGING ---
 logging.basicConfig(
@@ -25,6 +28,40 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+
+# --- FUNGSI AUTO-RECOVERY (ANTI-AMNESIA) ---
+
+def save_state():
+    state = {
+        "active_trade": active_trade,
+        "paper_entry_price": paper_entry_price,
+        "stop_loss": stop_loss,
+        "highest_p": highest_p,
+        "trade_count": trade_count,
+        "total_simulated_profit": total_simulated_profit
+    }
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception as e:
+        logging.error(f"Gagal menyimpan state: {e}")
+
+def load_state():
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Gagal memuat state: {e}")
+    
+    return {
+        "active_trade": False,
+        "paper_entry_price": 0.0,
+        "stop_loss": 0.0,
+        "highest_p": 0.0,
+        "trade_count": 0,
+        "total_simulated_profit": 0.0
+    }
 
 # --- HELPER SALDO SIMULASI ---
 def save_sim_balance(balance):
@@ -45,15 +82,24 @@ def load_sim_balance():
 
 # --- STATE KONTROL ---
 bot_active = True  
-active_trade = False 
-force_buy = False           # Untuk memicu test buy manual
-paper_entry_price = 0.0     # Harga masuk simulasi
-total_simulated_profit = 0.0 # Akumulasi PNL
-trade_count = 0             # Jumlah trade
-
+force_buy = False  # Untuk memicu test buy manual
 paper_usdt_balance = load_sim_balance() # Load saldo dari file
 paper_coin_holdings = 0.0
 
+# Load state dari file JSON
+state_data = load_state()
+active_trade = state_data["active_trade"]
+paper_entry_price = state_data["paper_entry_price"]
+stop_loss = state_data.get("stop_loss", 0.0)
+highest_p = state_data.get("highest_p", 0.0)
+trade_count = state_data["trade_count"]
+total_simulated_profit = state_data["total_simulated_profit"]
+stop_loss = 0.0
+highest_p = 0.0
+last_update_id = 0
+
+if active_trade:
+    logging.info(f"🔄 Auto-Recovery aktif! Melanjutkan trade yang menggantung. Harga Entry: {paper_entry_price}")
 os.environ['no_proxy'] = '*'
 load_dotenv()
 
@@ -64,12 +110,10 @@ TELE_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELE_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 BASE_URL = 'https://api.mexc.com'
-SYMBOL = 'BTCUSDT'
+SYMBOL = 'STOUSDT'
 TIMEFRAME = '5m'
 USDT_AMOUNT = 10.0
 DRY_RUN = True  
-
-last_update_id = 0
 
 # --- FUNGSI UTILS & PRESISI ---
 
@@ -93,6 +137,7 @@ def get_symbol_info(symbol: str):
     except Exception as e:
         logging.error(f"Gagal mengambil info simbol: {e}")
     return {'price_step': 0.01, 'qty_step': 0.000001}
+
 
 # --- FUNGSI PRIVATE REQUEST ---
 
@@ -167,20 +212,22 @@ def log_paper_trade(side: str, price: float, pnl: float = 0.0):
         f.write(msg + "\n")
 
 def execute_trade(side: str, amount: float):
-    global paper_entry_price, total_simulated_profit, paper_usdt_balance, paper_coin_holdings
+    global paper_entry_price, total_simulated_profit, paper_usdt_balance, paper_coin_holdings, active_trade, trade_count
     info = get_symbol_info(SYMBOL)
-    
     ticker_res = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}, timeout=5).json()
     price = float(ticker_res['askPrice']) if side.upper() == 'BUY' else float(ticker_res['bidPrice'])
     
-   # --- LOGIKA SIMULASI (DRY RUN) ---
+    # --- LOGIKA SIMULASI (Sesuai mode yang berjalan) ---
     if DRY_RUN:
         if side.upper() == 'BUY':
             if paper_usdt_balance >= amount:
                 paper_entry_price = price
-                # Hitung berapa koin yang didapat (amount / harga)
                 paper_coin_holdings = amount / price
                 paper_usdt_balance -= amount
+                active_trade = True  # Tandai posisi sedang aktif
+                
+                save_sim_balance(paper_usdt_balance)
+                save_state()  # <--- SIMPAN STATE (RECOVERY)
                 log_paper_trade("BUY", price)
             else:
                 logging.warning("⚠️ Saldo Simulasi USDT tidak cukup!")
@@ -190,15 +237,15 @@ def execute_trade(side: str, amount: float):
                 pnl_trade = (price - paper_entry_price) / paper_entry_price
                 total_simulated_profit += pnl_trade
                 
-                # Update saldo USDT
                 paper_usdt_balance += (paper_coin_holdings * price)
                 paper_coin_holdings = 0.0
+                active_trade = False # Tandai posisi sudah ditutup
+                trade_count += 1     # Tambah hitungan trade
                 
-                # SIMPAN KE FILE AGAR PERMANEN
                 save_sim_balance(paper_usdt_balance)
-                
+                save_state()  # <--- SIMPAN STATE (RECOVERY)
                 log_paper_trade("SELL", price, pnl_trade)
-        
+    
         logging.info(f"SIMULASI {side}: Harga {price} | Saldo: ${paper_usdt_balance:.2f}")
         return {'price': price, 'status': 'FILLED', 'orderId': 'SIMULASI'}
     
@@ -362,13 +409,17 @@ def handle_telegram_command(msg_text):
         send_telegram("✅ *BOT STARTED* 🟢")
     
     elif msg_text == "/reset_sim":
-        global paper_usdt_balance, paper_coin_holdings, total_simulated_profit, trade_count
+        global paper_usdt_balance, paper_coin_holdings, total_simulated_profit, trade_count, active_trade, paper_entry_price
         paper_usdt_balance = 1000.0
         paper_coin_holdings = 0.0
         total_simulated_profit = 0.0
         trade_count = 0
+        active_trade = False
+        paper_entry_price = 0.0
+        
         save_sim_balance(1000.0)
-        send_telegram("♻️ *Simulasi di-reset!* Saldo kembali ke `$1000.00` dan PNL dibersihkan.")
+        save_state() # Simpan reset ke JSON
+        send_telegram("♻️ *Simulasi di-reset!* Saldo kembali ke `$1000.00` dan riwayat dibersihkan.")
     
     elif msg_text == "/help":
         msg = ("📜 *Daftar Perintah:*\n"
@@ -384,74 +435,88 @@ def check_commands():
     try:
         url = f"https://api.telegram.org/bot{TELE_TOKEN}/getUpdates"
         res = requests.get(url, params={"offset": last_update_id+1, "timeout": 1}).json()
-        
-        for u in res.get("result", []):
-            last_update_id = u["update_id"]
-            
-            # --- CEK PESAN TEKS ---
-            if "message" in u:
-                user_id = str(u["message"].get("from", {}).get("id"))
-                msg_text = u["message"].get("text")
-                if user_id == str(TELE_CHAT_ID):
-                    handle_telegram_command(msg_text)
-            
-            # --- CEK KLIK TOMBOL (Callback Query) ---
-            elif "callback_query" in u:
-                cb = u["callback_query"]
-                user_id = str(cb.get("from", {}).get("id"))
-                cb_data = cb.get("data")
-                cb_id = cb.get("id")
+        updates = res.get("result", [])
+        if updates:
+            # Update ID TERLEBIH DAHULU sebelum loop proses
+            last_update_id = updates[-1]["update_id"]
+            for u in res.get("result", []):
+                last_update_id = u["update_id"]
                 
-                if user_id == str(TELE_CHAT_ID):
-                    if cb_data == "confirm_buy":
-                        if not active_trade:
-                            force_buy = True
-                            send_telegram("🚀 *Konfirmasi Diterima:* Menjalankan order...")
-                        else:
-                            send_telegram("❌ *Gagal:* Posisi masih aktif.")
-                    elif cb_data == "cancel_buy":
-                        send_telegram("☕ *Dibatalkan:* Tidak ada order yang dibuat.")
+                # --- CEK PESAN TEKS ---
+                if "message" in u:
+                    user_id = str(u["message"].get("from", {}).get("id"))
+                    msg_text = u["message"].get("text")
+                    if user_id == str(TELE_CHAT_ID):
+                        handle_telegram_command(msg_text)
+                
+                # --- CEK KLIK TOMBOL (Callback Query) ---
+                elif "callback_query" in u:
+                    cb = u["callback_query"]
+                    user_id = str(cb.get("from", {}).get("id"))
+                    cb_data = cb.get("data")
+                    cb_id = cb.get("id")
                     
-                    # Memberitahu Telegram bahwa callback sudah diproses (biar loading di tombol hilang)
-                    requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/answerCallbackQuery", 
-                                  data={"callback_query_id": cb_id})
+                    if user_id == str(TELE_CHAT_ID):
+                        if cb_data == "confirm_buy":
+                            if not active_trade:
+                                force_buy = True
+                                send_telegram("🚀 *Konfirmasi Diterima:* Menjalankan order...")
+                            else:
+                                send_telegram("❌ *Gagal:* Posisi masih aktif.")
+                        elif cb_data == "cancel_buy":
+                            send_telegram("☕ *Dibatalkan:* Tidak ada order yang dibuat.")
+                        
+                        # Memberitahu Telegram bahwa callback sudah diproses (biar loading di tombol hilang)
+                        requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/answerCallbackQuery", 
+                                    data={"callback_query_id": cb_id})
     except Exception as e:
         logging.error(f"Error checking Telegram updates: {e}")
 
-def monitor_position(entry_price: float):
-    global active_trade
-    active_trade = True
-    stop_loss = entry_price * 0.994 
-    highest_p = entry_price
+def monitor_position():
+    global active_trade, stop_loss, highest_p, paper_entry_price
     
-    logging.info(f"Mulai Monitoring. Entry: {entry_price}, SL: {stop_loss}")
+    # Jika baru pertama kali masuk (SL masih 0), inisialisasi SL awal
+    if stop_loss == 0:
+        stop_loss = paper_entry_price * 0.994
+        highest_p = paper_entry_price
+        logging.info(f"Mulai Monitoring. Entry: {paper_entry_price}, SL: {stop_loss}")
 
-    while True:
-        try:
-            ticker = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}).json()
-            curr_p = float(ticker['bidPrice'])
-            if curr_p > highest_p: highest_p = curr_p
-            pnl = (curr_p - entry_price) / entry_price
-
-            logging.info(f"Monitoring {SYMBOL} | Price: {curr_p} | PNL: {pnl*100:.2f}% | SL: {stop_loss:.2f}")
-
-            if pnl >= 0.005: 
-                new_sl = highest_p * 0.998 
-                if new_sl > stop_loss:
-                    stop_loss = new_sl
-                    logging.info(f"Trailing Up! New SL: {stop_loss}")
-
-            if curr_p <= stop_loss:
-                execute_trade('SELL', USDT_AMOUNT)
-                send_telegram(f"🏁 *EXIT POSITION* | PnL: `{pnl*100:.2f}%`")
-                break
+    try:
+        # 1. Ambil Harga Saat Ini
+        ticker = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}, timeout=5).json()
+        curr_p = float(ticker['bidPrice'])
+        
+        # 2. Update Harga Tertinggi (untuk Trailing)
+        if curr_p > highest_p: 
+            highest_p = curr_p
             
-            time.sleep(3) 
-        except Exception as e:
-            logging.error(f"Monitor Error: {e}")
-            time.sleep(5)
+        pnl = (curr_p - paper_entry_price) / paper_entry_price
+
+        # Log berkala (agar terminal tidak terlalu penuh, bisa diatur log levelnya)
+        logging.info(f"Monitoring {SYMBOL} | Price: {curr_p} | PNL: {pnl*100:.2f}% | SL: {stop_loss:.2f}")
+
+        # 3. Logika Trailing Stop
+        if pnl >= 0.005: 
+            new_sl = highest_p * 0.998 
+            if new_sl > stop_loss:
+                stop_loss = new_sl
+                logging.info(f"Trailing Up! New SL: {stop_loss}")
+                # Simpan state agar SL terbaru tidak hilang jika bot mati
+                save_state() 
+
+        # 4. Logika Exit (Sell)
+        if curr_p <= stop_loss:
+            execute_trade('SELL', USDT_AMOUNT)
+            send_telegram(f"🏁 *EXIT POSITION*\nPrice: `{curr_p}`\nNet PnL: `{pnl*100:.2f}%`")
             
-    active_trade = False
+            # Reset variabel setelah sell
+            active_trade = False
+            stop_loss = 0.0
+            highest_p = 0.0
+            save_state()
+
+    except Exception as e:
+        logging.error(f"Monitor Error: {e}")
 
 # --- THREAD LOOPS ---
 
@@ -462,38 +527,56 @@ def telegram_loop():
         time.sleep(1)
 
 def trading_loop():
-    global bot_active, force_buy
+    global bot_active, force_buy, active_trade
     logging.info(f"Jalur Trading Siap. Mode: {'DRY RUN' if DRY_RUN else 'REAL MONEY'}")
     
     while True:
         try:
-            if bot_active and not active_trade:
+            # 1. CEK STATUS AKTIF
+            if not bot_active:
+                time.sleep(2)
+                continue
+
+            # 2. CABANG LOGIKA: MONITOR ATAU CARI SINYAL
+            if active_trade:
+                # Sedang hold koin? Fokus pantau SL/TP
+                monitor_position() 
+                time.sleep(2) 
+            else:
+                # Saldo kosong? Cari peluang
                 df = fetch_data()
                 trigger_buy = False
                 
-                # Cek Sinyal Testing atau Sinyal Asli
+                # --- LOGIKA STRATEGI (The Power Logic) ---
                 if force_buy:
                     trigger_buy = True
                     force_buy = False
-                    logging.info("🛠️ Testing Buy dipicu user.")
+                    logging.info("🛠️ Testing Buy dipicu user via Telegram.")
+                
                 elif df is not None and not df.empty:
+                    # Ambil candle terakhir yang sudah close (index -2)
                     last = df.iloc[-2]
                     curr_rsi = last['rsi']
-                    if last['close'] > (last['vwap'] * 1.01) and last['close'] > last['open'] and curr_rsi < 70:
-                        trigger_buy = True
-                        logging.info(f"🚀 SIGNAL BUY! RSI: {curr_rsi:.2f}")
-
-                if trigger_buy:
-                    # Ambil harga real-time untuk monitor
-                    ticker = requests.get(f"{BASE_URL}/api/v3/ticker/price", params={'symbol': SYMBOL}).json()
-                    entry_p = float(ticker['price'])
                     
-                    if execute_trade('BUY', USDT_AMOUNT): 
-                        monitor_position(entry_p)
+                    # Logika: Harga > VWAP + Bullish Candle + RSI Belum Overbought
+                    if last['close'] > (last['vwap'] * 1.01) and \
+                       last['close'] > last['open'] and \
+                       curr_rsi < 70:
+                        
+                        trigger_buy = True
+                        logging.info(f"🚀 SIGNAL BUY! RSI: {curr_rsi:.2f} | Price: {last['close']}")
+
+                # 3. EKSEKUSI JIKA SINYAL VALID
+                if trigger_buy:
+                    if execute_trade('BUY', USDT_AMOUNT):
+                        logging.info("Sinyal BUY tereksekusi. Berpindah ke mode monitoring.")
                 
-                time.sleep(20)
-            else:
-                time.sleep(2)
+                # 4. JEDA SCAN + TETAP RESPONSIF KE TELEGRAM
+                # Kita ingin jeda 20 detik, tapi dicek per 2 detik agar Telegram tidak lemot
+                for _ in range(10): 
+                    if not bot_active or active_trade: break # Keluar jika status berubah
+                    time.sleep(2)
+
         except Exception as e:
             logging.error(f"⚠️ Error di Trading Loop: {e}")
             time.sleep(10)
