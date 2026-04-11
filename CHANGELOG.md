@@ -36,5 +36,7 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 ### Tips Penggunaan:
 
 **Selalu gunakan Versi [1.2.0] sebagai standar karena memiliki sistem Strategy Switcher yang adaptif.
+
 **Gunakan Mode SCALP untuk koin dengan volatilitas tinggi (seperti XRP, SIREN, atau koin gainers) untuk menangkap keuntungan cepat dari pantulan harga.
+
 **Gunakan Mode TREND untuk koin dengan kapitalisasi pasar besar dan pergerakan stabil (seperti BTC, ETH, BNB) untuk memaksimalkan keuntungan dari tren jangka panjang yang terkonfirmasi.
