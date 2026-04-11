@@ -85,6 +85,7 @@ bot_active = True
 force_buy = False  # Untuk memicu test buy manual
 paper_usdt_balance = load_sim_balance() # Load saldo dari file
 paper_coin_holdings = 0.0
+USE_HARD_TP = False
 
 # Load state dari file JSON
 state_data = load_state()
@@ -110,12 +111,70 @@ TELE_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELE_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 BASE_URL = 'https://api.mexc.com'
-SYMBOL = 'STOUSDT'
+SYMBOL = 'SIRENUSDT'
 TIMEFRAME = '5m'
 USDT_AMOUNT = 10.0
 DRY_RUN = True  
 
+# --- GLOBAL STRATEGY SETTINGS ---
+STRATEGY_MODE = "SCALP"
+
+STRATEGIES = {
+    "TREND": {
+        "rsi_min": 45,
+        "rsi_max": 68,
+        "vol_mult": 1.5,
+        "use_ema_200": True,
+        "tp_percent": 0.03,      # Target 3%
+        "sl_atr_mult": 1.5,
+        "trail_start": 0.008,    # Trailing mulai aktif di profit 0.8%
+        "trail_dist": 0.005      # Jarak SL dari puncak adalah 0.5%
+    },
+    "SCALP": {
+        "rsi_min": 30,           # Lebih rendah untuk tangkap pantulan
+        "rsi_max": 50,
+        "vol_mult": 1.2,         # Lebih sensitif terhadap volume
+        "use_ema_200": False,    # Abaikan tren besar
+        "tp_percent": 0.012,     # Target 1.2% (cepat bungkus)
+        "sl_atr_mult": 1.0,
+        "trail_start": 0.004,    # Trailing mulai aktif lebih cepat di 0.4%
+        "trail_dist": 0.002      # Jarak SL sangat ketat: 0.2% saja
+    }
+}
+
 # --- FUNGSI UTILS & PRESISI ---
+
+def check_spread(symbol, max_spread_percent=2.0):
+    """
+    Mengecek selisih harga bid/ask langsung via API MEXC.
+    """
+    try:
+        # Endpoint MEXC untuk ticker harga (Order Book Shortcut)
+        url = f"{BASE_URL}/api/v3/ticker/bookTicker"
+        params = {'symbol': symbol}
+        
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+        
+        if response.status_code == 200:
+            bid_price = float(data['bidPrice'])
+            ask_price = float(data['askPrice'])
+            
+            # Hitung persentase spread
+            spread_percent = ((ask_price - bid_price) / bid_price) * 100
+            
+            if spread_percent > max_spread_percent:
+                logging.warning(f"⚠️ Sinyal diabaikan! Spread {symbol} terlalu lebar: {spread_percent:.2f}%")
+                return False, spread_percent
+            
+            return True, spread_percent
+        else:
+            logging.error(f"❌ MEXC API Error: {data}")
+            return False, 0.0
+            
+    except Exception as e:
+        logging.error(f"❌ Gagal mengecek spread: {e}")
+        return False, 0.0
 
 def round_step(value: float, step_size: float) -> float:
     if step_size == 0: return float(value)
@@ -172,15 +231,23 @@ def mexc_request(method: str, path: str, params: Dict[str, Any] = None) -> Dict:
 def fetch_data() -> Optional[pd.DataFrame]:
     try:
         url = f"{BASE_URL}/api/v3/klines"
-        res = requests.get(url, params={'symbol': SYMBOL, 'interval': TIMEFRAME, 'limit': 100}).json()
+        # Limit dinaikkan ke 250 agar EMA 200 bisa terbentuk dengan sempurna
+        res = requests.get(url, params={'symbol': SYMBOL, 'interval': TIMEFRAME, 'limit': 250}).json()
         df = pd.DataFrame(res, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'ct', 'qav'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = df[col].astype(float)
         
+        # --- INDIKATOR LAMA ---
         df['tp'] = (df['high'] + df['low'] + df['close']) / 3
         df['vwap'] = (df['tp'] * df['volume']).cumsum() / df['volume'].cumsum()
         df['rsi'] = ta.rsi(df['close'], length=14)
+        
+        # --- INDIKATOR BARU (POWER FILTER) ---
+        df['ema_50'] = ta.ema(df['close'], length=50)
+        df['ema_200'] = ta.ema(df['close'], length=200)
+        df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        df['vol_sma'] = ta.sma(df['volume'], length=20)
         
         return df
     except Exception as e:
@@ -211,24 +278,39 @@ def log_paper_trade(side: str, price: float, pnl: float = 0.0):
             trade_count += 1
         f.write(msg + "\n")
 
-def execute_trade(side: str, amount: float):
+def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_price: float = None):
     global paper_entry_price, total_simulated_profit, paper_usdt_balance, paper_coin_holdings, active_trade, trade_count
+    
     info = get_symbol_info(SYMBOL)
     ticker_res = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}, timeout=5).json()
-    price = float(ticker_res['askPrice']) if side.upper() == 'BUY' else float(ticker_res['bidPrice'])
     
-    # --- LOGIKA SIMULASI (Sesuai mode yang berjalan) ---
+    # --- LOGIKA HARGA BARU ---
+    if forced_price:
+        price = forced_price  # Gunakan harga limit jika ada
+    else:
+        # Jika tidak ada forced_price, gunakan logika Ask/Bid market seperti biasa
+        price = float(ticker_res['askPrice']) if side.upper() == 'BUY' else float(ticker_res['bidPrice'])
+    
+    # --- LOGIKA SIMULASI (Selebihnya kode kamu tetap sama) ---
     if DRY_RUN:
         if side.upper() == 'BUY':
             if paper_usdt_balance >= amount:
                 paper_entry_price = price
                 paper_coin_holdings = amount / price
                 paper_usdt_balance -= amount
-                active_trade = True  # Tandai posisi sedang aktif
+                active_trade = True 
                 
                 save_sim_balance(paper_usdt_balance)
-                save_state()  # <--- SIMPAN STATE (RECOVERY)
+                save_state()
                 log_paper_trade("BUY", price)
+
+                type_tag = "LIMIT" if forced_price else "MARKET"
+                msg = (f"🚀 *SIMULASI {type_tag} BUY EXECUTED*\n"
+                       f"Symbol: `{SYMBOL}`\n"
+                       f"Price: `{price}`\n"
+                       f"Amount: `${amount}`")
+                send_telegram(msg)
+
             else:
                 logging.warning("⚠️ Saldo Simulasi USDT tidak cukup!")
                 return None
@@ -245,12 +327,26 @@ def execute_trade(side: str, amount: float):
                 save_sim_balance(paper_usdt_balance)
                 save_state()  # <--- SIMPAN STATE (RECOVERY)
                 log_paper_trade("SELL", price, pnl_trade)
+
+                # --- TAMBAHKAN INI ---
+                emoji = "💰" if pnl_trade > 0 else "📉"
+                msg = (f"{emoji} *SIMULASI SELL EXECUTED*\n"
+                       f"Symbol: `{SYMBOL}`\n"
+                       f"Exit Price: `{price}`\n"
+                       f"PNL: *{pnl_trade*100:.2f}%*")
+                send_telegram(msg)
     
         logging.info(f"SIMULASI {side}: Harga {price} | Saldo: ${paper_usdt_balance:.2f}")
         return {'price': price, 'status': 'FILLED', 'orderId': 'SIMULASI'}
     
     # --- LOGIKA REAL TRADING ---
-    params = {'symbol': SYMBOL, 'side': side.upper(), 'type': 'MARKET'}
+    params = {'symbol': SYMBOL, 'side': side.upper(), 'type': order_type}
+    
+    if order_type == "LIMIT":
+        params['price'] = "{:f}".format(price)
+        params['quantity'] = "{:f}".format(round_step(amount / price, info['qty_step']))
+    elif side.upper() == 'BUY':
+        params['quoteOrderQty'] = round_step(amount, info['price_step'])
     
     if side.upper() == 'BUY':
         params['quoteOrderQty'] = round_step(amount, info['price_step'])
@@ -369,19 +465,29 @@ def handle_status_command(status):
                f"🏦 *Info Saldo:*\n"
                f"💵 USDT (Tersedia): `{usdt_display:.2f}`\n"
                f"🪙 {asset_name} (Dimiliki): `{coin_display:.6f}`\n"
-               f"💰 *Total Equity:* `{total_equity:.2f}`") # Total nilai akun
+               f"💰 *Total Equity:* `{total_equity:.2f}`")
 
         send_telegram(msg)
     except Exception as e:
         logging.error(f"Error status command: {e}")
 
 def handle_telegram_command(msg_text):
-    global bot_active, force_buy
+    global bot_active, force_buy, active_trade, stop_loss, highest_p
+    global paper_usdt_balance, paper_coin_holdings, total_simulated_profit, trade_count, paper_entry_price
+    global STRATEGY_MODE
+
+    if msg_text == "/mode_trend":
+        STRATEGY_MODE = "TREND"
+        send_telegram("🚀 Mode diubah ke: *TREND FOLLOWING*\n(Fokus EMA 200 & Profit Besar)")
     
-    if msg_text == "/status":
-        status_tele = "🟢 ON" if bot_active else "🔴 OFF"
+    elif msg_text == "/mode_scalp":
+        STRATEGY_MODE = "SCALP"
+        send_telegram("⚡ Mode diubah ke: *SCALPING/REBOUND*\n(Fokus RSI Bawah & Quick Profit)")
+
+    elif msg_text == "/status":
+        status_tele = ""
         status_log = "ON" if bot_active else "OFF"
-        
+        msg = f"🤖 🟢 ON" if bot_active else "🔴 OFF <==> *Bot Status*\nMode: `{STRATEGY_MODE}`\nActive Trade: `{active_trade}`"
         logging.info(f"User meminta status. Bot saat ini: {status_log}") 
         handle_status_command(status_tele) # Kirim teks status
         send_chart() # Kirim gambar grafik
@@ -399,17 +505,38 @@ def handle_telegram_command(msg_text):
         
         requests.post(f"https://api.telegram.org/bot{TELE_TOKEN}/sendMessage", 
                       json={"chat_id": TELE_CHAT_ID, "text": msg, "reply_markup": keyboard, "parse_mode": "Markdown"})
-            
+        
     elif msg_text == "/stop":
         bot_active = False
-        send_telegram("⚠️ *BOT STOPPED* 🔴")
+        if active_trade:
+            send_telegram("⚠️ *BOT STOPPED:* Menutup posisi aktif sebelum nonaktif...")
+            execute_trade('SELL', USDT_AMOUNT)
+            active_trade = False
+            save_state()
+        send_telegram("🛑 *BOT STOPPED & POSITION CLEARED* 🔴")
+    
+    elif msg_text == "/panic":
+        send_telegram("🚨 *PANIC BUTTON TRIGGERED!* 🚨")
         
+        # 1. Jual posisi jika ada
+        if active_trade:
+            send_telegram("📉 Sedang melikuidasi posisi...")
+            execute_trade('SELL', USDT_AMOUNT)
+            active_trade = False
+        else:
+            send_telegram("ℹ️ Tidak ada posisi aktif untuk dijual.")
+
+        # 2. Matikan Bot
+        bot_active = False
+        save_state()
+        
+        send_telegram("🛑 *SISTEM DIMATIKAN TOTAL.* Bot tidak akan mencari sinyal sampai kamu ketik `/start` kembali.")
+
     elif msg_text == "/start":
         bot_active = True
         send_telegram("✅ *BOT STARTED* 🟢")
     
     elif msg_text == "/reset_sim":
-        global paper_usdt_balance, paper_coin_holdings, total_simulated_profit, trade_count, active_trade, paper_entry_price
         paper_usdt_balance = 1000.0
         paper_coin_holdings = 0.0
         total_simulated_profit = 0.0
@@ -420,13 +547,34 @@ def handle_telegram_command(msg_text):
         save_sim_balance(1000.0)
         save_state() # Simpan reset ke JSON
         send_telegram("♻️ *Simulasi di-reset!* Saldo kembali ke `$1000.00` dan riwayat dibersihkan.")
+
+    elif msg_text == "/exit":
+        if active_trade:
+            send_telegram("⚠️ *FORCED EXIT:* Menutup posisi sekarang...")
+            # Eksekusi Jual
+            execute_trade('SELL', USDT_AMOUNT)
+            
+            # Reset variabel state secara manual untuk keamanan
+            active_trade = False
+            paper_entry_price = 0.0
+            stop_loss = 0.0
+            highest_p = 0.0
+            save_state()
+            
+            send_telegram("✅ *Posisi berhasil ditutup.* Bot tetap aktif mencari sinyal baru.")
+        else:
+            send_telegram("ℹ️ *Tidak ada posisi aktif* yang perlu ditutup.")    
     
     elif msg_text == "/help":
         msg = ("📜 *Daftar Perintah:*\n"
                "• `/start` - Aktifkan bot\n"
-               "• `/stop` - Matikan bot\n"
+               "• `/stop` - Matikan bot (tanpa jual aset)\n"
+               "• `/exit` - Jual paksa (bot tetap aktif mencari sinyal baru)\n"
+               "• `/panic` - *Jual paksa & Matikan bot total* 🚨\n"
                "• `/status` - Cek PNL & Harga\n"
                "• `/testbuy` - Tes beli saat ini juga\n"
+               "• `/mode_trend` - Ubah ke mode Trend Following\n"
+               "• `/mode_scalp` - Ubah ke mode Scalping\n"
                "• `/reset_sim` - Reset saldo mode simulasi\n")
         send_telegram(msg)
 
@@ -473,46 +621,62 @@ def check_commands():
         logging.error(f"Error checking Telegram updates: {e}")
 
 def monitor_position():
-    global active_trade, stop_loss, highest_p, paper_entry_price
+    global active_trade, stop_loss, highest_p, paper_entry_price, STRATEGY_MODE
     
-    # Jika baru pertama kali masuk (SL masih 0), inisialisasi SL awal
+    # --- AMBIL KONFIGURASI SESUAI MODE ---
+    conf = STRATEGIES[STRATEGY_MODE]
+    USE_HARD_TP = True
+    target_profit_percent = conf['tp_percent']
+    tp_price = paper_entry_price * (1 + target_profit_percent)
+    
+    # Inisialisasi awal jika SL masih 0
     if stop_loss == 0:
-        stop_loss = paper_entry_price * 0.994
+        # Default SL jika ATR gagal (misal 1% di bawah entry)
+        stop_loss = paper_entry_price * 0.99 
         highest_p = paper_entry_price
-        logging.info(f"Mulai Monitoring. Entry: {paper_entry_price}, SL: {stop_loss}")
+        logging.info(f"[{STRATEGY_MODE}] Monitoring Start. TP: {tp_price:.4f}")
 
     try:
-        # 1. Ambil Harga Saat Ini
+        # 1. Ambil Harga Saat Ini (Bid untuk Jual)
         ticker = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}, timeout=5).json()
         curr_p = float(ticker['bidPrice'])
         
-        # 2. Update Harga Tertinggi (untuk Trailing)
+        # Update harga tertinggi untuk patokan Trailing
         if curr_p > highest_p: 
             highest_p = curr_p
             
         pnl = (curr_p - paper_entry_price) / paper_entry_price
 
-        # Log berkala (agar terminal tidak terlalu penuh, bisa diatur log levelnya)
-        logging.info(f"Monitoring {SYMBOL} | Price: {curr_p} | PNL: {pnl*100:.2f}% | SL: {stop_loss:.2f}")
+        # Log Monitoring berkala
+        logging.info(f"[{STRATEGY_MODE}] {SYMBOL} | Price: {curr_p} | PNL: {pnl*100:.2f}% | SL: {stop_loss:.4f} | TP: {tp_price:.4f}")
 
-        # 3. Logika Trailing Stop
-        if pnl >= 0.005: 
-            new_sl = highest_p * 0.998 
+        # 2. LOGIKA HARD TP
+        if USE_HARD_TP and curr_p >= tp_price:
+            logging.info(f"🎯 [{STRATEGY_MODE}] HARD TP HIT! Menjual...")
+            execute_trade('SELL', USDT_AMOUNT)
+            send_telegram(f"💰 *HARD TP EXECUTED*\nMode: `{STRATEGY_MODE}`\nNet PnL: *{pnl*100:.2f}%*")
+            active_trade, stop_loss, highest_p = False, 0.0, 0.0
+            save_state()
+            return
+
+        # 3. LOGIKA TRAILING STOP (DINAMIS)
+        # Ambil trail_start dan trail_dist dari config
+        if pnl >= conf['trail_start']: 
+            # New SL = Harga tertinggi dikurangi jarak trailing sesuai mode
+            new_sl = highest_p * (1 - conf['trail_dist']) 
+            
             if new_sl > stop_loss:
-                stop_loss = new_sl
-                logging.info(f"Trailing Up! New SL: {stop_loss}")
-                # Simpan state agar SL terbaru tidak hilang jika bot mati
+                # Pastikan ada jarak aman 0.05% dari harga sekarang agar tidak langsung kena
+                stop_loss = min(new_sl, curr_p * 0.9995) 
+                logging.info(f"📈 Trailing Up! New SL: {stop_loss:.4f}")
                 save_state() 
 
-        # 4. Logika Exit (Sell)
+        # 4. LOGIKA EXIT (Sell jika harga menyentuh SL)
         if curr_p <= stop_loss:
             execute_trade('SELL', USDT_AMOUNT)
-            send_telegram(f"🏁 *EXIT POSITION*\nPrice: `{curr_p}`\nNet PnL: `{pnl*100:.2f}%`")
-            
-            # Reset variabel setelah sell
-            active_trade = False
-            stop_loss = 0.0
-            highest_p = 0.0
+            emoji = "🏁" if pnl < 0 else "💰"
+            send_telegram(f"{emoji} *POSITION CLOSED*\nMode: `{STRATEGY_MODE}`\nNet PnL: *{pnl*100:.2f}%*")
+            active_trade, stop_loss, highest_p = False, 0.0, 0.0
             save_state()
 
     except Exception as e:
@@ -527,55 +691,93 @@ def telegram_loop():
         time.sleep(1)
 
 def trading_loop():
-    global bot_active, force_buy, active_trade
-    logging.info(f"Jalur Trading Siap. Mode: {'DRY RUN' if DRY_RUN else 'REAL MONEY'}")
+    global bot_active, force_buy, active_trade, stop_loss, highest_p, STRATEGY_MODE
+    logging.info(f"Jalur Trading Siap. Mode: {'DRY RUN' if DRY_RUN else 'REAL MONEY'} | Strategy: {STRATEGY_MODE}")
     
     while True:
         try:
-            # 1. CEK STATUS AKTIF
             if not bot_active:
                 time.sleep(2)
                 continue
 
-            # 2. CABANG LOGIKA: MONITOR ATAU CARI SINYAL
             if active_trade:
-                # Sedang hold koin? Fokus pantau SL/TP
                 monitor_position() 
                 time.sleep(2) 
             else:
-                # Saldo kosong? Cari peluang
                 df = fetch_data()
                 trigger_buy = False
                 
-                # --- LOGIKA STRATEGI (The Power Logic) ---
+                # Ambil konfigurasi aktif berdasarkan mode
+                conf = STRATEGIES[STRATEGY_MODE] 
+
                 if force_buy:
                     trigger_buy = True
                     force_buy = False
-                    logging.info("🛠️ Testing Buy dipicu user via Telegram.")
+                    if df is not None and not df.empty:
+                        last_atr = df.iloc[-2]['atr']
+                        curr_price = df.iloc[-2]['close']
+                        stop_loss = curr_price - (last_atr * 1.5) if not pd.isna(last_atr) else curr_price * 0.99
+                        highest_p = curr_price
                 
                 elif df is not None and not df.empty:
-                    # Ambil candle terakhir yang sudah close (index -2)
                     last = df.iloc[-2]
-                    curr_rsi = last['rsi']
+                    if pd.isna(last['ema_200']) or pd.isna(last['vol_sma']):
+                        time.sleep(2)
+                        continue
                     
-                    # Logika: Harga > VWAP + Bullish Candle + RSI Belum Overbought
-                    if last['close'] > (last['vwap'] * 1.01) and \
-                       last['close'] > last['open'] and \
-                       curr_rsi < 70:
-                        
-                        trigger_buy = True
-                        logging.info(f"🚀 SIGNAL BUY! RSI: {curr_rsi:.2f} | Price: {last['close']}")
+                    ticker_realtime = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}).json()
+                    curr_price = float(ticker_realtime['askPrice'])
+                    curr_rsi = last['rsi'] 
+                    
+                    logging.info(f"🔍 [{STRATEGY_MODE}] Scan {SYMBOL} | RSI: {curr_rsi:.2f} | Price: {curr_price}")
 
-                # 3. EKSEKUSI JIKA SINYAL VALID
-                if trigger_buy:
-                    if execute_trade('BUY', USDT_AMOUNT):
-                        logging.info("Sinyal BUY tereksekusi. Berpindah ke mode monitoring.")
+                    # --- LOGIKA FILTER DINAMIS ---
+                    # Jika TREND = Cek EMA200. Jika SCALP = Anggap True (Abaikan)
+                    if conf["use_ema_200"]:
+                        is_uptrend = (last['ema_50'] > last['ema_200']) and (curr_price > last['ema_200'])
+                    else:
+                        is_uptrend = True 
+
+                    above_vwap = (curr_price > last['vwap']) and (curr_price < last['vwap'] * 1.015)
+                    volume_breakout = last['volume'] > (last['vol_sma'] * conf["vol_mult"]) 
+                    rsi_healthy = conf["rsi_min"] < curr_rsi < conf["rsi_max"] 
+                    bullish_candle = curr_price > last['open']
+
+                    if is_uptrend and above_vwap and volume_breakout and rsi_healthy and bullish_candle:
+                        trigger_buy = True
+                        stop_loss = curr_price - (last['atr'] * conf["sl_atr_mult"]) 
+                        highest_p = curr_price
+                        logging.info(f"🚀 {STRATEGY_MODE} SIGNAL VALID! SL: {stop_loss:.4f}")
+
+                if trigger_buy and not active_trade:
+                    # Naikkan batas toleransi spread ke 2.5% karena sekarang ada Limit Order
+                    is_safe, current_spread = check_spread(SYMBOL, 2.5) 
+                    
+                    if is_safe:
+                        # Ambil data harga bid/ask terbaru untuk penentuan harga limit
+                        ticker_res = requests.get(f"{BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': SYMBOL}).json()
+                        bid_price = float(ticker_res['bidPrice'])
+                        ask_price = float(ticker_res['askPrice'])
+
+                        if current_spread <= 0.8:
+                            # 1. MARKET BUY (Spread tipis, hajar langsung)
+                            logging.info(f"✅ Spread Tipis ({current_spread:.2f}%). Menjalankan MARKET BUY...")
+                            execute_trade('BUY', USDT_AMOUNT) 
+                        else:
+                            # 2. LIMIT BUY (Spread agak lebar, kita antre)
+                            # Strategi: Antre di harga Bid + 5% dari jarak spread agar posisi di depan
+                            limit_price = bid_price + (ask_price - bid_price) * 0.05
+                            logging.info(f"🟡 Spread Lebar ({current_spread:.2f}%). Menjalankan LIMIT BUY di {limit_price}...")
+                            execute_trade('BUY', USDT_AMOUNT, order_type="LIMIT", forced_price=limit_price)
+                    else:
+                        # 3. IGNORE (Spread terlalu berbahaya/di atas 2.5%)
+                        msg = f"🚫 *SIGNAL IGNORED*\nSymbol: `{SYMBOL}`\nSpread: `{current_spread:.2f}%` (Terlalu Lebar)"
+                        send_telegram(msg)
                 
-                # 4. JEDA SCAN + TETAP RESPONSIF KE TELEGRAM
-                # Kita ingin jeda 20 detik, tapi dicek per 2 detik agar Telegram tidak lemot
-                for _ in range(10): 
-                    if not bot_active or active_trade: break # Keluar jika status berubah
-                    time.sleep(2)
+                # Jeda scan reguler
+                for _ in range(20): 
+                    if not bot_active or active_trade: break
+                    time.sleep(1)
 
         except Exception as e:
             logging.error(f"⚠️ Error di Trading Loop: {e}")
@@ -612,40 +814,44 @@ def send_chart():
         logging.error(f"Gagal kirim chart: {e}")
 
 # --- MAIN EXECUTION ---
-
 if __name__ == "__main__":
     print("--- BOT MEXC REST API V3 ---")
+    if force_buy:
+        send_telegram("🤖 *Bot Started!* Mode: AUTOMATIC SCANNING")
+    else:
+        send_telegram("🤖 *Bot Started!* Mode: MANUAL SCANNING")
     print("Tekan Ctrl + C untuk berhenti total.")
     
+    # 1. Validasi API Key
     if not API_KEY:
-        print("❌ ERROR: API KEY tidak ditemukan di file .env!")
+        logging.error("❌ ERROR: API KEY tidak ditemukan!")
         sys.exit()
-
-    # Memberitahu Telegram saat bot baru dijalankan
-    send_telegram("🤖 *Bot Started!* (Multitasking Mode Aktif)")
     
-    # Inisialisasi Thread
+    # 3. Inisialisasi Multitasking (Threading)
     t1 = threading.Thread(target=telegram_loop)
     t2 = threading.Thread(target=trading_loop)
     
-    t1.daemon = True
+    t1.daemon = True # Agar thread mati otomatis saat script utama mati
     t2.daemon = True
     
     t1.start()
     t2.start()
     
+    # 4. Loop Utama untuk Menjaga Program Tetap Hidup
     try:
         while True:
-            time.sleep(1) # Menjaga script tetap hidup
+            time.sleep(1) 
     except KeyboardInterrupt:
+        bot_active = False  # Hentikan semua loop trading & telegram segera!
         print("\n🛑 Signal Shutdown Diterima (Ctrl+C)...")
-        
-        # --- FITUR SAFETY SELL SEBELUM MATI ---
+        # Beri jeda 1 detik agar thread yang sedang berjalan bisa membaca bot_active = False
+        time.sleep(1) 
+
         if active_trade:
-            print("⚠️ Ada posisi aktif! Mencoba melakukan SELL otomatis sebelum shutdown...")
-            send_telegram("⚠️ *Shutdown Alert*: Menutup posisi terbuka secara otomatis...")
+            print("⚠️ Ada posisi aktif! Mencoba melakukan SELL otomatis...")
+            send_telegram("⚠️ *Shutdown Alert*: Menutup posisi sebelum offline...")
             try:
-                # Memanggil fungsi sell yang sudah ada di kode Anda
+                # Pastikan execute_trade sudah mendukung SELL
                 execute_trade('SELL', USDT_AMOUNT)
                 print("✅ Posisi berhasil ditutup.")
             except Exception as e:
