@@ -1,6 +1,53 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [1.4.0] - 2026-04-12
+### Added
+- **Unified Profit Tracker**: Menyatukan sistem penghitungan profit. Variabel `total_accumulated_profit` kini secara otomatis mengakumulasi keuntungan baik dari mode **Simulasi (Dry Run)** maupun **Real Trading (Live)**.
+- **Smart Startup Status**: Bot kini memberikan notifikasi yang lebih logis saat dinyalakan. Menampilkan status `⚡ INSTANT ENTRY` jika `force_buy` aktif, dan `🔍 AUTO SCAN` jika dalam mode normal.
+- **Persistent Global State**: Memastikan status *Trade Count* dan *Accumulated Profit* tersimpan ke dalam `bot_state.json` segera setelah transaksi `SELL` berhasil di kedua mode.
+- **Emergency Auto-Sell on Shutdown**: Menambahkan protokol keamanan yang secara otomatis mencoba mengeksekusi `MARKET SELL` jika pengguna mematikan bot (Ctrl+C) saat masih ada posisi aktif, guna mencegah aset tertahan tanpa pengawasan.
+- **Telegram Auto-Revive System**: Menambahkan logika "Health Check" di loop utama yang secara otomatis membangkitkan ulang (*restart*) thread Telegram jika terdeteksi mati atau tidak responsif akibat gangguan jaringan.
+- **Dynamic Trailing Stop (Scalp)**: Mengimplementasikan fitur pelacakan keuntungan agresif pada mode Scalp. Bot kini dapat menahan posisi lebih lama saat harga melonjak (*pump*) dan hanya akan menjual jika terjadi penurunan sebesar 0.4% dari titik tertinggi.
+- **Python-Side Request Timeout**: Menambahkan parameter `timeout` pada level aplikasi saat melakukan *request* ke API Telegram untuk mencegah thread membeku (*freezing*) selamanya saat terjadi kegagalan sinkronisasi server.
+
+### Changed
+- **Variable Refactoring (Clean Code)**: 
+    - Mengubah `total_simulated_profit` menjadi `total_accumulated_profit` agar lebih representatif untuk penggunaan saldo asli.
+    - Mengubah `paper_entry_price` menjadi `entry_price` sebagai variabel tunggal pemantau harga beli untuk semua mode.
+- **Enhanced Live Reporting**: Pesan notifikasi `REAL TRADE COMPLETED` kini menyertakan kalkulasi PNL bersih dan total akumulasi profit keseluruhan secara real-time.
+- **Thread Safety Improvement**: Memperbarui logika `bot_active = False` pada *main execution* untuk memastikan semua thread (Trading & Telegram) berhenti secara sinkron saat sinyal shutdown diterima.
+- **Optimized Scalp Sensitivity**: Penyesuaian parameter strategi untuk respon lebih cepat:
+    - Menaikkan batas atas RSI dari `55` ke `65`.
+    - Menurunkan ambang batas Volume Multiplier menjadi `1.1x`.
+    - Mempercepat frekuensi pemindaian (*delay_scan*) menjadi 15 detik.
+- **Hard TP Bypass**: Mengubah status `use_hard_tp` menjadi `False` pada mode Scalp untuk memberikan ruang bagi logika *Trailing Stop* dalam memaksimalkan profit saat kondisi *bullish*.
+
+### Fixed
+- **Live Profit Leak**: Memperbaiki bug di mana profit pada mode Live tidak tercatat pada variabel total akumulasi (sebelumnya hanya muncul di notifikasi Telegram tanpa disimpan ke memori).
+- **Execution Logic Redundancy**: Menghapus duplikasi pemanggilan fungsi notifikasi startup pada blok eksekusi utama.
+- **Limit Order Formatting**: Mengembalikan logika format harga dan kuantitas untuk `ORDER_TYPE = LIMIT` pada mode Live yang sempat hilang, memastikan kepatuhan terhadap *step size* API MEXC.
+- **Telegram Thread Freezing**: Memperbaiki masalah bot tidak merespons perintah (commands) setelah berjalan berjam-jam dengan mengoptimalkan durasi *long-polling* dan penanganan *exception* pada koneksi HTTP.
+- **Terminal Sell Logging**: Menambahkan baris `logging.info` yang sebelumnya absen pada proses eksekusi `SELL`, memastikan setiap transaksi terekam di terminal/konsol selain di Telegram.
+
+## [1.3.0] - 2026-04-12
+### Added
+- **Multi-Timeframe Adaptive Data**: Fungsi `fetch_data()` kini menerima parameter `interval` secara dinamis. Bot akan secara otomatis menarik data K-Line (candlestick) yang berbeda (misal: 1m untuk Scalp, 15m untuk Trend) sesuai mode yang aktif.
+- **Dynamic Scan Delay**: Menambahkan parameter `delay_scan` pada konfigurasi strategi. Bot sekarang memiliki "ritme napas" yang adaptif, bot melakukan pemindaian lebih cepat saat Scalping (20s) dan lebih tenang saat memantau Trend (60s).
+- **Remote Symbol Switcher**: Perintah Telegram baru `/symbol <NAMA_KOIN>` untuk mengganti target koin secara instan tanpa menyentuh kode.
+- **Live Verification System**: Bot akan memverifikasi keberadaan koin ke API MEXC sebelum menyetujui pergantian simbol untuk mencegah error akibat salah ketik.
+- **Safety Lock (Symbol Change)**: Menambahkan proteksi yang menolak pergantian simbol jika bot masih memiliki posisi terbuka (`active_trade = True`) guna mencegah kekacauan data pada fungsi monitoring.
+
+### Changed
+- **Peningkatan Data Limit**: Menaikkan pengambilan data awal ke `limit: 250` untuk memastikan indikator jangka panjang seperti **EMA 200** memiliki data historis yang cukup dan akurat (menghindari nilai "floating").
+- **Indikator Power Pack**: Melengkapi `fetch_data()` dengan perhitungan `vol_sma`, `vwap`, dan `ema_50` secara terpusat agar DataFrame selalu siap digunakan oleh logika filter mana pun.
+- **Robust Status Report**: Memperbarui perintah `/status` dengan perhitungan *Floating PNL*, *Total Equity*, dan visualisasi saldo yang lebih rapi menggunakan format Markdown.
+
+### Fixed
+- **DataFrame Column Error**: Memperbaiki bug `'vol_sma'` (KeyError) dengan memastikan semua indikator dihitung di dalam fungsi fetcher sebelum data diproses oleh loop utama.
+- **Telegram Markdown Crash**: Memperbaiki masalah pesan status yang tidak muncul akibat tanda baca (backtick/asterisk) yang tidak seimbang pada pengiriman pesan Telegram.
+- **Return Logic Enhancement**: Mengganti penggunaan `continue` menjadi `return` pada handler Telegram untuk memperbaiki error interpretasi Python pada blok fungsi di luar loop.
+
 ## [1.2.0] - 2026-04-11
 ### Added
 - **Sistem Strategy Switcher**: Menambahkan dictionary `STRATEGIES` untuk menyimpan parameter "TREND" dan "SCALP" di satu tempat.
@@ -33,8 +80,12 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
 ---
 
-### Tips Penggunaan:
+### Tips Penggunaan (Update):
 
-**Selalu gunakan Versi [1.2.0] sebagai standar karena memiliki sistem Strategy Switcher yang adaptif.
-**Gunakan Mode SCALP untuk koin dengan volatilitas tinggi (seperti XRP, SIREN, atau koin gainers) untuk menangkap keuntungan cepat dari pantulan harga.
-**Gunakan Mode TREND untuk koin dengan kapitalisasi pasar besar dan pergerakan stabil (seperti BTC, ETH, BNB) untuk memaksimalkan keuntungan dari tren jangka panjang yang terkonfirmasi.
+* **Monitoring Responsif**: Saat posisi aktif (`active_trade = True`), bot akan meningkatkan frekuensi pengecekan harga (setiap 3-5 detik). Ini normal dan bertujuan agar *Stop Loss* tereksekusi tepat waktu.
+* **Keamanan Shutdown**: Jika ingin mematikan bot saat trading riil, gunakan `Ctrl + C` di terminal agar bot sempat menutup posisi. Menutup paksa jendela terminal secara langsung akan mematikan bot tanpa sempat menjual aset yang sedang di-hold.
+* **Optimasi API**: Gunakan `delay_scan` yang lebih tinggi (>60s) pada timeframe besar untuk menghindari *rate limit* API jika kamu berencana memantau banyak koin.
+* **Ganti Koin Cepat**: Gunakan `/symbol BTCUSDT` untuk berpindah fokus ke aset dengan likuiditas tinggi jika pasar sedang mengalami volatilitas ekstrem yang tidak menentu.
+* **Akurasi EMA**: Jika kamu menggunakan timeframe besar (seperti 1h atau 4h), pastikan bot dibiarkan menyala beberapa saat agar perhitungan EMA 200 benar-benar stabil mengikuti pergerakan harga terbaru.
+* **Gunakan Mode SCALP**: untuk koin dengan volatilitas tinggi (seperti XRP, SIREN, atau koin gainers) untuk menangkap keuntungan cepat dari pantulan harga.
+* **Gunakan Mode TREND**: untuk koin dengan kapitalisasi pasar besar dan pergerakan stabil (seperti BTC, ETH, BNB) untuk memaksimalkan keuntungan dari tren jangka panjang yang terkonfirmasi.
