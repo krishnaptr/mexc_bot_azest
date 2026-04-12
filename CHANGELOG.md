@@ -22,6 +22,7 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
     - Menurunkan ambang batas Volume Multiplier menjadi `1.1x`.
     - Mempercepat frekuensi pemindaian (*delay_scan*) menjadi 15 detik.
 - **Hard TP Bypass**: Mengubah status `use_hard_tp` menjadi `False` pada mode Scalp untuk memberikan ruang bagi logika *Trailing Stop* dalam memaksimalkan profit saat kondisi *bullish*.
+- **SL Adjust**: Mengubah variabel untuk Stop Lost.
 
 ### Fixed
 - **Live Profit Leak**: Memperbaiki bug di mana profit pada mode Live tidak tercatat pada variabel total akumulasi (sebelumnya hanya muncul di notifikasi Telegram tanpa disimpan ke memori).

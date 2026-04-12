@@ -113,19 +113,19 @@ TELE_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELE_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 BASE_URL = 'https://api.mexc.com'
-SYMBOL = 'SOLUSDT'
+SYMBOL = 'ENJUSDT'
 USDT_AMOUNT = 50.0
 DRY_RUN = True  
 
 # --- GLOBAL STRATEGY SETTINGS ---
-STRATEGY_MODE = "TREND"
+STRATEGY_MODE = "SCALP"
 
 STRATEGIES = {
     "TREND": {
         "interval": "15m",
         "rsi_min": 40, "rsi_max": 70, "vol_mult": 1.5,
         "use_ema_200": True, "tp_percent": 0.04,
-        "sl_atr_mult": 2.0, "trail_start": 0.02, "trail_dist": 0.015, "delay_scan": 60,
+        "sl_atr_mult": 2.0, "trail_start": 0.03, "trail_dist": 0.02, "delay_scan": 60,
         "use_hard_tp": False
     },
     "SCALP": {
@@ -134,12 +134,12 @@ STRATEGIES = {
         "rsi_max": 65, 
         "vol_mult": 1.1, 
         "use_ema_200": False,
-        "tp_percent": 0.03,    # Dinaikkan ke 3% (sebagai batas atas plafon)
-        "sl_atr_mult": 1.2, 
-        "trail_start": 0.008,  # MULAI LOCK PROFIT di 0.8%
-        "trail_dist": 0.004,   # Jaga jarak 0.4% dari harga tertinggi
+        "tp_percent": 0.03,    
+        "sl_atr_mult": 3.0, 
+        "trail_start": 0.01,  
+        "trail_dist": 0.007, 
         "delay_scan": 15,
-        "use_hard_tp": False   # Ubah ke False agar Trailing Stop bisa bekerja mengejar kenaikan
+        "use_hard_tp": False 
     }
 }
 
@@ -284,7 +284,6 @@ def log_paper_trade(side: str, price: float, pnl: float = 0.0):
         msg = f"[{datetime.now()}] {side} {SYMBOL} @ {price}"
         if side == "SELL":
             msg += f" | PNL Trade: {pnl*100:.2f}%"
-            trade_count += 1
         f.write(msg + "\n")
 
 def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_price: float = None):
@@ -368,7 +367,7 @@ def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_p
             # --- Pasang Sabuk Pengaman (STOP LOSS) ---
             try:
                 exec_qty = float(res.get('origQty', 0)) if order_type == "LIMIT" else (amount / price)
-                hard_sl_price = round_step(price * 0.98, info['price_step'])
+                hard_sl_price = round_step(price * 0.95, info['price_step'])
                 sl_params = {
                     'symbol': SYMBOL, 'side': 'SELL', 'type': 'STOP_LOSS_LIMIT',
                     'quantity': "{:f}".format(round_step(exec_qty * 0.99, info['qty_step'])),
