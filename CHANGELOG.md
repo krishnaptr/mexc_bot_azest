@@ -1,6 +1,26 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [1.6.0] - 2026-04-14
+### Added
+- **SQLite Database Integration**: Mengganti sistem pencatatan `.txt` tradisional dengan *database* relasional SQLite (`trading_history.db`). Semua riwayat `BUY`, `SELL`, `Gross PNL`, dan `Net PNL` kini direkam secara terstruktur dalam tabel.
+- **FastAPI Backend Server**: Membuat file independen `api_server.py` yang menyediakan endpoint RESTful API (`/api/stats`, `/api/history`, `/api/equity`). Server ini bertugas sebagai jembatan untuk menyuplai data *real-time* ke antarmuka Dashboard Angular.
+- **Microservices Architecture**: Memecah `main.py` yang sebelumnya monolith (1000+ baris) menjadi modul-modul terpisah (*Separation of Concerns*):
+    - `config.py`: Sentralisasi konfigurasi, API Key, dan setting strategi.
+    - `database.py`: Menangani urusan penyimpanan file JSON dan operasi SQLite.
+    - `telegram_bot.py`: Mengisolasi fungsi *long-polling* dan notifikasi Telegram dari beban kerja indikator trading.
+
+### Changed
+- **MEXC Real Fee Adjustment**: Menurunkan asumsi `EXCHANGE_FEE` dari `0.20%` ke `0.10%` (`0.001`) berdasarkan struktur tarif MEXC yang menguntungkan (Maker 0%, Taker 0.05%).
+- **Faster Scalping Trailing**: Menurunkan trigger `trail_start` pada mode SCALP ke `0.005` (0.5%) karena biaya *round-trip* bursa lebih murah, memungkinkan bot mengunci profit lebih dini.
+- **Net Profit Logic Focus**: Mengubah logika PNL pada monitor terminal dan status Telegram agar selalu menampilkan **Net PNL** (Profit setelah dipotong biaya bursa), bukan Gross PNL, memberikan transparansi *real-time* terhadap profit aktual.
+- **Command Renaming**: Mengubah perintah telegram `/testbuy` menjadi `/forcebuy` agar pengguna lebih waspada bahwa perintah tersebut mengeksekusi uang sungguhan saat bot berada dalam mode LIVE.
+
+### Fixed
+- **Force Buy Instant-Sell Bug**: Memperbaiki logika `/forcebuy` yang memicu bot untuk langsung menjual koin di detik pertama pembelian. Hal ini diatasi dengan mereset perhitungan `stop_loss` ke `0.0` sampai harga *entry* eksekusi aktual benar-benar diterima dari bursa.
+- **Missing Terminal Buy Logs**: Menambahkan `logging.info()` untuk eksekusi `MARKET` dan `LIMIT BUY` (baik di mode Simulasi maupun Live) yang sebelumnya absen dari terminal *console*.
+- **Telegram Context Error**: Mengatasi isu *AttributeError* dengan menyesuaikan parameter modul `sys.modules[__name__]` saat mengaktifkan thread `telegram_bot.start_polling()` agar asisten Telegram dapat mengontrol state di `main.py` dengan benar.
+
 ## [1.5.0] - 2026-04-14
 ### Added
 - **Hammer Pattern Detection**: Menambahkan fungsi `is_hammer()` untuk mendeteksi pola *candlestick reversal* secara otomatis. Sinyal ini mendapat prioritas eksekusi tinggi (*Aggressive Entry*) saat berada di area *oversold*.
@@ -99,8 +119,6 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 - **Risk Management**: Stop Loss dinamis berbasis ATR (Average True Range).
 - **Telegram Notifier**: Integrasi pengiriman sinyal dan status bot ke Telegram.
 - **Simulation Mode**: Fitur Dry Run untuk testing tanpa menggunakan saldo asli.
-
----
 
 ### Tips Penggunaan (Update):
 
