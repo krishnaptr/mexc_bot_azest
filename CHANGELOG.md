@@ -1,6 +1,27 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [1.5.0] - 2026-04-14
+### Added
+- **Hammer Pattern Detection**: Menambahkan fungsi `is_hammer()` untuk mendeteksi pola *candlestick reversal* secara otomatis. Sinyal ini mendapat prioritas eksekusi tinggi (*Aggressive Entry*) saat berada di area *oversold*.
+- **RSI Hook (Momentum Confirmation)**: Menambahkan logika `rsi_moving_up` untuk mendeteksi pantulan RSI (`curr_rsi > prev['rsi']`). Bot kini tidak akan membeli aset yang sedang terjun bebas (*menghindari "Catching a Falling Knife"*), melainkan menunggu hingga harga mulai berbalik naik.
+- **Strict Interval Validation**: Menambahkan sistem keamanan pada fungsi `fetch_data()` untuk memastikan format interval valid (misal: `"1m"`, `"15m"`) agar terhindar dari *crash* API MEXC (Error Code: `-1121`).
+- **Comprehensive Scan Logging**: Memperbarui log pemindaian terminal agar menampilkan `SYMBOL`, `Price`, status `RSI_UP`, dan `Hammer` dalam satu baris, mempermudah pemantauan indikator secara *real-time*.
+
+### Changed
+- **Unified & Optimized Trigger Logic**: Merombak total blok eksekusi `trigger_buy` di dalam `trading_loop`. Menghapus logika yang tumpang tindih/duplikat dan menyatukannya ke dalam satu alur hirarki yang lebih efisien dan mudah dibaca (*Refactored*).
+- **Aggressive yet Safe Scalp Parameters**: Menyesuaikan ulang `STRATEGIES["SCALP"]`:
+    - Mengaktifkan kembali `use_ema_200` sebagai batas tren wajib (Anti-Pisau Jatuh).
+    - Memperlebar jangkauan `rsi_max` ke `52` dan `rsi_min` ke `20`.
+    - Melonggarkan `vol_mult` menjadi `1.0`.
+    - Mengubah `trail_start` ke `0.007` (0.7%) untuk memperhitungkan *round-trip trading fee* agar profit bersih tidak tergerus biaya bursa.
+- **Realtime Forced Exit Pricing**: Perintah Telegram `/stop`, `/panic`, dan `/exit` sekarang mengambil harga *Bid* terbaru dari API terlebih dahulu sebelum mengirim parameter `forced_price` ke fungsi jual.
+
+### Fixed
+- **Simulation Precision Bug (PNL 0.00%)**: Memperbaiki masalah di mana *Dry Run* selalu mencatat PNL 0.00%. Ini dilakukan dengan memisahkan pembulatan `price_str` khusus untuk Mode Live (REST API MEXC) dan mempertahankan harga `float` murni berpresisi tinggi untuk simulasi.
+- **Missing Terminal Sell Log**: Mengembalikan baris `logging.info(...)` pada blok eksekusi `SELL` mode simulasi yang sempat terhapus di versi sebelumnya.
+- **Accidental Spread Market Order Fallback**: Memastikan limit_price tidak pernah menyentuh *Ask Price* saat spread lebar agar order benar-benar antre (Limit) dan tidak tereksekusi instan seperti Market order.
+
 ## [1.4.0] - 2026-04-12
 ### Added
 - **Unified Profit Tracker**: Menyatukan sistem penghitungan profit. Variabel `total_accumulated_profit` kini secara otomatis mengakumulasi keuntungan baik dari mode **Simulasi (Dry Run)** maupun **Real Trading (Live)**.
@@ -12,7 +33,7 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 - **Python-Side Request Timeout**: Menambahkan parameter `timeout` pada level aplikasi saat melakukan *request* ke API Telegram untuk mencegah thread membeku (*freezing*) selamanya saat terjadi kegagalan sinkronisasi server.
 
 ### Changed
-- **Variable Refactoring (Clean Code)**: 
+- **Variable Refactoring (Clean Code)**:
     - Mengubah `total_simulated_profit` menjadi `total_accumulated_profit` agar lebih representatif untuk penggunaan saldo asli.
     - Mengubah `paper_entry_price` menjadi `entry_price` sebagai variabel tunggal pemantau harga beli untuk semua mode.
 - **Enhanced Live Reporting**: Pesan notifikasi `REAL TRADE COMPLETED` kini menyertakan kalkulasi PNL bersih dan total akumulasi profit keseluruhan secara real-time.
@@ -83,6 +104,7 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
 ### Tips Penggunaan (Update):
 
+* **Manajemen Harapan & Fee**: Pada strategi Scalp, sadari bahwa target `0.7%` atau `1.5%` mungkin terdengar kecil, namun itu diformulasikan untuk tetap menghasilkan Profit Bersih (Nett) *setelah* dipotong biaya trading MEXC (Beli + Jual).
 * **Monitoring Responsif**: Saat posisi aktif (`active_trade = True`), bot akan meningkatkan frekuensi pengecekan harga (setiap 3-5 detik). Ini normal dan bertujuan agar *Stop Loss* tereksekusi tepat waktu.
 * **Keamanan Shutdown**: Jika ingin mematikan bot saat trading riil, gunakan `Ctrl + C` di terminal agar bot sempat menutup posisi. Menutup paksa jendela terminal secara langsung akan mematikan bot tanpa sempat menjual aset yang sedang di-hold.
 * **Optimasi API**: Gunakan `delay_scan` yang lebih tinggi (>60s) pada timeframe besar untuk menghindari *rate limit* API jika kamu berencana memantau banyak koin.
