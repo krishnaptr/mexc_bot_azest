@@ -1,0 +1,23 @@
+{
+    "env": {
+        "api_key": "mx0vglLy9uCiM9q8KG",
+        "secret_key": "02aac676d496492d86b7f1db68d3a08e",
+        "tele_token": "8545630322:AAGJ0EyqY5pvQtcJf1tjmqMtCB9Fqtg8bm0",
+        "tele_chat_id": "1758356648"
+    },
+    "general": {
+        "symbol": "BTCUSDT",
+        "usdt_amount": 50,
+        "dry_run": true
+    },
+    "trend": {
+        "interval": "15m", "rsi_min": 30, "rsi_max": 75, "vol_mult": 1.1,
+        "use_ema_200": true, "tp_percent": 0.04, "sl_atr_mult": 1.5, 
+        "trail_start": 0.02, "trail_dist": 0.01, "delay_scan": 60, "use_hard_tp": true
+        },
+        "scalp": {
+        "interval": "1m", "rsi_min": 20, "rsi_max": 52, "vol_mult": 1.0,
+        "use_ema_200": true, "tp_percent": 0.02, "sl_atr_mult": 2.5, 
+        "trail_start": 0.015, "trail_dist": 0.008, "delay_scan": 10, "use_hard_tp": true
+        }
+}

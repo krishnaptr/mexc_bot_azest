@@ -7,6 +7,7 @@ import pandas as pd
 import pandas_ta as ta
 import logging
 import sys
+import json
 import threading
 import matplotlib
 # Mode backend untuk render gambar di latar belakang tanpa membuka jendela UI baru di server
@@ -50,7 +51,9 @@ total_accumulated_profit = state_data["total_accumulated_profit"]
 
 last_update_id = 0
 trigger_scan = threading.Event()
-STRATEGY_MODE = "SCALP"
+STRATEGY_MODE = "TREND"
+
+last_known_status = True
 
 # Deteksi jika bot baru direstart tapi masih punya posisi nyangkut
 if active_trade:
@@ -66,6 +69,7 @@ def update_and_save_state():
     lalu mengirimnya ke database.py untuk disimpan ke file JSON.
     """
     state = {
+        "is_active": bot_active,
         "active_trade": active_trade,
         "entry_price": entry_price,
         "stop_loss": stop_loss,
@@ -74,6 +78,48 @@ def update_and_save_state():
         "total_accumulated_profit": total_accumulated_profit
     }
     database.save_state(state)
+
+def sync_dashboard_data():
+    """Mengambil setting terbaru dari JSON dan menimpanya ke memori bot."""
+    global bot_active, last_known_status
+    
+    # A. Update Parameter Setting
+    latest_cfg = config.get_settings()
+    
+    config.API_KEY = latest_cfg['env'].get('api_key', '')
+    config.SECRET_KEY = latest_cfg['env'].get('secret_key', '')
+
+    config.TELE_TOKEN = latest_cfg['env'].get('tele_token', '')
+    config.TELE_CHAT_ID = latest_cfg['env'].get('tele_chat_id', '')
+    
+    config.SYMBOL = latest_cfg['general']['symbol']
+    config.USDT_AMOUNT = latest_cfg['general']['usdt_amount']
+    config.DRY_RUN = latest_cfg['general']['dry_run']
+    config.STRATEGIES = {
+        "TREND": latest_cfg['trend'],
+        "SCALP": latest_cfg['scalp']
+    }
+    
+    try:
+        with open(config.STATE_FILE, "r") as f:
+            state_data = json.load(f)
+            new_status = state_data.get("is_active", True)
+            
+            # Jika status berubah dari Web, kirim Notif Telegram
+            if new_status != last_known_status:
+                if new_status:
+                    telegram_bot.send_message("✅ *Dashboard Alert*: Bot dijalankan kembali 🟢")
+                else:
+                    telegram_bot.send_message("🛑 *Dashboard Alert*: Bot telah dijeda ⏸️")
+                last_known_status = new_status
+            
+            bot_active = new_status
+            
+        state_data["last_heartbeat"] = time.time()
+        with open(config.STATE_FILE, "w") as f:
+            json.dump(state_data, f)
+    except Exception:
+        pass
 
 # --- FUNGSI UTILS & PRESISI ---
 def check_spread(symbol, max_spread_percent=2.0):
@@ -171,13 +217,19 @@ def fetch_data(symbol: str, interval: str) -> Optional[pd.DataFrame]:
         df['ema_50'] = ta.ema(df['close'], length=50)
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         df['vol_sma'] = ta.sma(df['volume'], length=20)
+
+        # ---INDIKATOR KEKUATAN TREN (ADX) ---
+        adx = ta.adx(df['high'], df['low'], df['close'], length=14)
+        df['adx'] = adx['ADX_14']
         
         # Hitung VWAP (Volume Weighted Average Price)
         tp = (df['high'] + df['low'] + df['close']) / 3
         df['vwap'] = (tp * df['volume']).cumsum() / df['volume'].cumsum()
         
         return df
-    except: return None
+    except Exception as e: 
+        logging.error(f"❌ CRASH DI FETCH_DATA: {str(e)}")
+        return None
 
 def get_balance():
     """Mengecek saldo aktual USDT dan Token di dompet MEXC Anda."""
@@ -370,6 +422,7 @@ def trading_loop():
     logging.info(f"Jalur Trading Siap. Mode: {'DRY RUN' if config.DRY_RUN else 'REAL MONEY'} | Strategy: {STRATEGY_MODE}")
     
     while True:
+        sync_dashboard_data()
         conf = config.STRATEGIES[STRATEGY_MODE] 
         try:
             # 1. Bot sedang diam dimatikan via /stop
@@ -385,6 +438,8 @@ def trading_loop():
             
             # 3. Bot sedang mencari mangsa (Scanning Indikator)
             else:
+                logging.info(f"🔍 [{STRATEGY_MODE}] Memulai pemindaian pasar untuk {config.SYMBOL}...")
+                
                 df = fetch_data(config.SYMBOL, conf['interval'])
                 trigger_buy = False
                 
@@ -409,6 +464,9 @@ def trading_loop():
                     rsi_moving_up = curr_rsi > prev['rsi'] 
                     found_hammer = is_hammer(last)         
                     volume_breakout = last['volume'] > (last['vol_sma'] * conf["vol_mult"])
+
+                    curr_adx = last['adx']
+                    is_trending_market = curr_adx > 25.0 # ADX > 25 artinya tren kuat, hindari sideways
                     
                     logging.info(f"🔍 [{STRATEGY_MODE}] Scan {config.SYMBOL} | Price: {curr_price} | RSI: {curr_rsi:.2f} | Up: {rsi_moving_up} | Hammer: {found_hammer}")
                     
@@ -417,7 +475,7 @@ def trading_loop():
                     rsi_healthy = (conf["rsi_min"] < curr_rsi < conf["rsi_max"])
 
                     # Eksekusi Evaluasi Sinyal
-                    if is_uptrend and rsi_healthy and rsi_moving_up:
+                    if is_uptrend and rsi_healthy and rsi_moving_up and is_trending_market:
                         if found_hammer:
                             trigger_buy = True
                             logging.info(f"🚀 AGGRESSIVE ENTRY: Hammer Detected!")
@@ -496,7 +554,10 @@ def send_chart():
 # --- MAIN EXECUTION (Garis Start) ---
 if __name__ == "__main__":
     database.init_db() # Inisialisasi database
-    
+    bot_active = True
+    update_and_save_state()
+
+    sync_dashboard_data()
     print("--- BOT MEXC REST API V3 ---")
     status_msg = "🤖 *Bot Started!*\nMode: ⚡ *FORCE BUY*" if force_buy else "🤖 *Bot Started!*\nMode: 🔍 *AUTO SCAN*"
     telegram_bot.send_message(status_msg)

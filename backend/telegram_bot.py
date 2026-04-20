@@ -185,7 +185,7 @@ def start_polling(bot_engine_module):
     global last_update_id
     logging.info("Jalur Telegram Siap (Dipisahkan).")
     
-    while bot_engine_module.bot_active:
+    while True:
         try:
             url = f"https://api.telegram.org/bot{config.TELE_TOKEN}/getUpdates"
             res = requests.get(url, params={"offset": last_update_id+1, "timeout": 5}, timeout=10).json()

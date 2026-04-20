@@ -1,0 +1,133 @@
+<div class="animate-fadein">
+  <div
+    class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4"
+  >
+    <div>
+      <h2
+        class="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight transition-colors duration-300"
+      >
+        Trade History
+      </h2>
+      <p
+        class="text-slate-400 dark:text-slate-500 mt-1 transition-colors duration-300"
+      >
+        Daftar lengkap seluruh transaksi yang dieksekusi oleh bot.
+      </p>
+    </div>
+
+    <p-iconfield iconPosition="left">
+      <p-inputicon styleClass="pi pi-search" />
+      <input
+        pInputText
+        type="text"
+        (input)="dt.filterGlobal($any($event.target).value, 'contains')"
+        placeholder="Cari Koin atau Side..."
+        class="w-full md:w-80 rounded-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900 transition-all"
+      />
+    </p-iconfield>
+  </div>
+
+  <div
+    class="bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors duration-300"
+  >
+    <p-table
+      #dt
+      [value]="botService.tradeHistory()"
+      [paginator]="true"
+      [rows]="10"
+      [showCurrentPageReport]="true"
+      [tableStyle]="{ 'min-width': '50rem' }"
+      currentPageReportTemplate="Menampilkan {first} sampai {last} dari {totalRecords} transaksi"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      [globalFilterFields]="['symbol', 'side']"
+      styleClass="p-datatable-gridlines p-datatable-sm custom-history-table"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th
+            pSortableColumn="timestamp"
+            class="dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800"
+          >
+            Waktu <p-sortIcon field="timestamp" />
+          </th>
+          <th
+            pSortableColumn="symbol"
+            class="dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800"
+          >
+            Pasar (Symbol) <p-sortIcon field="symbol" />
+          </th>
+          <th
+            class="dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 text-center"
+          >
+            Tipe
+          </th>
+          <th
+            pSortableColumn="net_pnl"
+            class="dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 text-right"
+          >
+            Profit/Loss <p-sortIcon field="net_pnl" />
+          </th>
+          <th
+            class="dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 text-center"
+          >
+            Aksi
+          </th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-trade>
+        <tr
+          class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+        >
+          <td class="dark:text-slate-300 dark:border-slate-800/50">
+            <span class="text-xs font-medium text-slate-400">{{
+              trade.timestamp
+            }}</span>
+          </td>
+          <td class="dark:text-white dark:border-slate-800/50 font-bold">
+            {{ trade.symbol }}
+          </td>
+          <td class="dark:border-slate-800/50 text-center">
+            <p-tag
+              [value]="trade.side"
+              [severity]="trade.side === 'BUY' ? 'info' : 'warn'"
+              [rounded]="true"
+            />
+          </td>
+          <td class="dark:border-slate-800/50 text-right">
+            <span
+              class="font-bold tracking-tight"
+              [ngClass]="
+                trade.net_pnl > 0 ? 'text-emerald-500' : 'text-rose-500'
+              "
+            >
+              {{ trade.net_pnl > 0 ? "+" : "" }}{{ trade.net_pnl }}
+            </span>
+          </td>
+          <td class="dark:border-slate-800/50 text-center">
+            <p-button
+              icon="pi pi-external-link"
+              [text]="true"
+              [rounded]="true"
+              size="small"
+              severity="secondary"
+            />
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="5" class="text-center py-20 dark:bg-slate-900">
+            <div class="flex flex-col items-center gap-3">
+              <i class="pi pi-database text-4xl text-slate-200"></i>
+              <span class="text-slate-400"
+                >Tidak ada riwayat transaksi yang ditemukan.</span
+              >
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>

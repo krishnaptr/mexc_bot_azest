@@ -1,6 +1,25 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [2.0.0] - 2026-04-18
+### Added
+- **Decoupled Full-Stack Architecture**: Perubahan fundamental arsitektur dengan memisahkan mesin inti (`main.py`) dari server antarmuka (`api_server.py`). Memungkinkan Dashboard Web tetap berjalan stabil meskipun mesin trading sedang dalam kondisi *restart* atau *crash*.
+- **Bot Heartbeat System**: Implementasi sistem "Detak Jantung" digital. `main.py` kini memperbarui *timestamp* setiap loop, memungkinkan Dashboard untuk mendeteksi secara *real-time* apakah mesin trading benar-benar sedang hidup (*Online*) atau mati (*Offline*).
+- **ADX Indicator (Trend Strength Filter)**: Menambahkan indikator *Average Directional Index* (ADX). Bot kini memiliki filter "Anti-Sideways"; hanya akan mengeksekusi *Entry* jika kekuatan tren berada di atas nilai 25, mengurangi sinyal palsu pada pasar yang mendatar.
+- **Dynamic Hot-Reload Settings**: Memindahkan konfigurasi statis ke dalam `settings.json`. Pengguna kini dapat mengubah parameter strategi (RSI, ATR, SL, TP) langsung dari Dashboard tanpa perlu mematikan dan menyalakan ulang skrip Python.
+- **MEXC Real-Time Balance Sync**: Integrasi API Akun MEXC pada Dashboard. Statistik *Equity* kini dapat menampilkan saldo USDT asli langsung dari dompet bursa saat mode LIVE aktif.
+- **Dashboard-Telegram Sync Notification**: Sinkronisasi status sakelar. Menekan tombol "Jeda" atau "Aktif" di Web kini otomatis mengirimkan notifikasi laporan status ke Telegram.
+
+### Changed
+- **Hard-Capped Stop Loss Logic**: Menambahkan "Sabuk Pengaman" ekstra pada perhitungan SL. Jika perhitungan ATR menghasilkan jarak *Stop Loss* yang terlalu dalam (misal > 10%), sistem akan otomatis memaksanya (*Hard Cap*) ke angka maksimal -5% untuk melindungi modal dari volatilitas ekstrem.
+- **Reverse Chronological Logging**: Mengubah urutan tampilan log pada Dashboard. Aktivitas terbaru kini muncul di baris paling atas, menghilangkan kebutuhan pengguna untuk melakukan *scroll* manual.
+- **API Guard on Toggle**: Mengubah logika tombol aktifasi. Server API kini akan menolak perintah "Aktifkan Bot" dan memberikan peringatan jika mendeteksi `main.py` belum dijalankan di terminal.
+
+### Fixed
+- **Optimistic UI Toggle Failure**: Memperbaiki masalah di mana tombol Dashboard terlihat aktif padahal mesin mati. Kini UI akan otomatis kembali ke posisi *Off* jika aktivasi gagal.
+- **Config Attribute Error (`BASE_URL` & `TELE_TOKEN`)**: Memperbaiki *crash* sistem saat *startup* akibat variabel lingkungan yang belum terinisialisasi dengan benar pada arsitektur baru.
+- **Auto-Wake State on Manual Run**: Memastikan status bot di Dashboard otomatis berubah menjadi hijau (Aktif) segera setelah pengguna menjalankan `python main.py` di terminal.
+
 ## [1.6.0] - 2026-04-14
 ### Added
 - **SQLite Database Integration**: Mengganti sistem pencatatan `.txt` tradisional dengan *database* relasional SQLite (`trading_history.db`). Semua riwayat `BUY`, `SELL`, `Gross PNL`, dan `Net PNL` kini direkam secara terstruktur dalam tabel.

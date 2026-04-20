@@ -1,0 +1,109 @@
+# config.py
+import os
+import json
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SETTINGS_FILE = "settings.json"
+STATE_FILE = "bot_state.json" 
+DB_FILE = "trading_history.db"
+
+API_KEY = ""
+SECRET_KEY = ""
+TELE_TOKEN = ""
+TELE_CHAT_ID = ""
+SYMBOL = "BTCUSDT"
+USDT_AMOUNT = 50.0
+DRY_RUN = True
+STRATEGIES = {}
+
+BASE_URL = 'https://api.mexc.com'
+EXCHANGE_FEE = 0.001
+
+def get_settings():
+    """
+    Fungsi ini dipanggil oleh Bot di SETIAP LUP (Loop)
+    agar bot selalu mendapatkan konfigurasi terbaru dari Dashboard.
+    """
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                data = json.load(f)
+                
+                # Timpa nilai ENV dari .env lokal jika di JSON kosong
+                if not data['env'].get('api_key'):
+                    data['env']['api_key'] = os.getenv('API_KEY', '').strip() or ""
+                if not data['env'].get('secret_key'):
+                    data['env']['secret_key'] = os.getenv('SECRET_KEY', '').strip() or ""
+                if not data['env'].get('tele_token'):
+                    data['env']['tele_token'] = os.getenv('TELEGRAM_TOKEN', '').strip() or ""
+                if not data['env'].get('tele_chat_id'):
+                    data['env']['tele_chat_id'] = os.getenv('TELEGRAM_CHAT_ID', '').strip() or ""
+                    
+                return data
+        except Exception as e:
+            print(f"Gagal membaca settings.json: {e}")
+            
+    # Jika settings.json belum ada (baru pertama kali di-run), return default ini
+    return {
+        "env": {
+            "api_key": os.getenv('API_KEY', '').strip() or "",
+            "secret_key": os.getenv('SECRET_KEY', '').strip() or "",
+            "tele_token": os.getenv('TELEGRAM_TOKEN', '').strip() or "",
+            "tele_chat_id": os.getenv('TELEGRAM_CHAT_ID', '').strip() or ""
+        },
+        "general": {
+            "symbol": "BTCUSDT",
+            "usdt_amount": 50.0,
+            "dry_run": True
+        },
+        "trend": {
+        "interval": "15m", "rsi_min": 30, "rsi_max": 75, "vol_mult": 1.1,
+        "use_ema_200": True, "tp_percent": 0.04, "sl_atr_mult": 1.5, 
+        "trail_start": 0.02, "trail_dist": 0.01, "delay_scan": 60, "use_hard_tp": True
+        },
+        "scalp": {
+        "interval": "1m", "rsi_min": 20, "rsi_max": 52, "vol_mult": 1.0,
+        "use_ema_200": True, "tp_percent": 0.02, "sl_atr_mult": 2.5, 
+        "trail_start": 0.015, "trail_dist": 0.008, "delay_scan": 10, "use_hard_tp": True
+        }
+    }
+
+# Notes:
+
+# 1. Kacamata Waktu & Kecepatan (Waktu)
+# *`interval` (Waktu Grafik):* *Fungsi:* Menentukan dari kacamata mana bot melihat grafik. 
+#     Trend (`15m`):* Melihat lilin (candle) 15 menitan. Pergerakan lebih stabil dan minim sinyal palsu.
+#     Scalp (`1m`):* Melihat lilin 1 menitan. Sangat cepat, agresif, dan penuh dengan riak (noise).
+# *`delay_scan` (Waktu Istirahat):
+#     Fungsi:* Waktu tunggu (dalam detik) sebelum bot mengecek harga lagi setelah satu putaran selesai.
+#     Trend (`60`):* Cek setiap 1 menit. Cocok karena grafik 15m tidak berubah tiap detik.
+#     Scalp (`10`):* Cek setiap 10 detik. Harus cepat karena di grafik 1m, telat beberapa detik bisa kehilangan momen.
+
+# 2. Kriteria Pembelian (Kapan Beli?)
+# *`rsi_min` & `rsi_max` (Zona Nyaman RSI):
+#     Fungsi:* Memastikan koin tidak terlalu jenuh jual (kepanikan) dan tidak terlalu jenuh beli (pucuk).
+#     Trend (`30 - 75`):* Cukup longgar. Tren yang kuat biasanya memiliki RSI tinggi (hingga 75) dan masih bisa terus naik.
+#     Scalp (`20 - 52`):* Sangat ketat! Bot hanya mau beli koin yang sedang berada di bawah (RSI rendah), berharap koin tersebut memantul (rebound) sedikit ke arah tengah (52) untuk segera dijual untung.
+# *`vol_mult` (Syarat Ledakan Volume):
+#     Fungsi:* Bot hanya beli jika ada ledakan volume transaksi dibandingkan rata-rata.
+#     Trend (`1.1`):* Butuh volume 10% lebih besar dari rata-rata untuk konfirmasi tren asli.
+#     Scalp (`1.0`):* Volume biasa (rata-rata) sudah cukup untuk masuk, karena target untungnya sangat kecil.
+# *`use_ema_200` (Penyaring Arah Angin):
+#     Fungsi:* Jika `True`, bot HANYA akan membeli jika harga berada di atas garis EMA 200 (pasar sedang uptrend/naik). Ini menghindarkan dari membeli koin yang sedang *nyungsep*.
+
+# 3. Manajemen Risiko & Keuntungan (Kapan Jual?)
+# *`tp_percent` (Target Keuntungan Absolut):
+#     Trend (`0.04` = 4%):* Menargetkan profit 4% per transaksi.
+#     Scalp (`0.02` = 2%):* Mengambil sedikit untung 2% dan langsung kabur.
+# *`use_hard_tp` (Penjualan Kaku):
+#     Fungsi:* Jika `True`, bot akan otomatis menjual tepat di angka `tp_percent` tanpa kompromi. Ia tidak akan menunggu harga naik lebih tinggi lagi.
+# *`sl_atr_mult` (Jarak Stop Loss/Cut Loss):
+#     Fungsi:* Jarak kerugian maksimal yang diizinkan berdasarkan volatilitas (keliaran) koin.
+#     Trend (`1.5`):* Relatif sedang.
+#     Scalp (`2.5`):* Angkanya terlihat besar (2.5x), TAPI karena ini grafik 1 menit, pergerakan koinnya sangat sempit. Jadi 2.5x ATR di 1 menit jauh lebih kecil secara dolar dibandingkan 1.5x ATR di 15 menit.
+# *`trail_start` & `trail_dist` (Jaring Pengaman Otomatis / Trailing Stop):
+#     Fungsi:* Ini adalah fitur tercanggih. Jika harga belum menyentuh Take Profit (TP), tapi sudah mulai naik lumayan tinggi, bot akan "membangun" titik Stop Loss baru yang mengikuti harga naik dari bawah untuk mengunci profit.
+#     Trend (`start: 0.02, dist: 0.01`):* Jika harga naik +2%, fitur aktif. Bot akan terus mengikuti dari jarak -1% di bawah pucuk harga. Jika harga tiba-tiba berbalik arah dan turun 1%, bot langsung menjual dengan sisa profit 1%.
+#     Scalp (`start: 0.015, dist: 0.008`):* Fitur aktif lebih cepat saat harga baru naik 1.5%.

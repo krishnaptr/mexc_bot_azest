@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "primeicons/primeicons.css";
+
+body {
+  @apply bg-slate-100 text-slate-800 m-0 p-0;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+.custom-history-table {
+  .p-datatable-thead > tr > th {
+    padding: 1rem 1.5rem !important;
+  }
+
+  .p-datatable-tbody > tr > td {
+    padding: 1rem 1.5rem !important;
+  }
+
+  .p-paginator {
+    padding-top: 1rem;
+    padding-bottom: 0.5rem;
+    background-color: transparent;
+    border-top: 1px solid rgba(226, 232, 240, 0.5);
+  }
+}
+
+.p-dropdown-panel {
+  z-index: 9999 !important;
+}
+html.dark {
+  .custom-history-table {
+    .p-paginator {
+      border-top: 1px solid rgba(30, 41, 59, 0.5);
+    }
+  }
+}
