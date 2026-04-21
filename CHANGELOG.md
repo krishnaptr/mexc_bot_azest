@@ -1,6 +1,21 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [2.1.0] - 2026-04-21
+### Added
+- **Standalone Backtest Engine (`backtest.py`)**: Menambahkan skrip mesin waktu independen untuk menguji parameter strategi secara matematis terhadap 1000 *candle* historis di MEXC. Memberikan laporan detail terkait *Win Rate*, Total Trade, dan Net Profit sebelum bot dijalankan dengan uang riil.
+- **Risk-Free Trade (Break-Even Stop Loss)**: Mengimplementasikan sistem pertahanan modal tingkat lanjut. Bot kini otomatis memindahkan *Stop Loss* ke titik *Entry Price + Fee* segera setelah profit mencapai ambang batas tertentu (`breakeven_start`), memastikan posisi yang sudah untung tidak akan pernah berakhir minus.
+- **Multi-Timeframe (MTF) Macro Filter**: Menambahkan "Kacamata Makro". Bot kini menarik data dari *timeframe* besar (misal `4h`) untuk memastikan tren utama sedang *Bullish* (Harga > EMA 200 Makro) sebelum mengizinkan eksekusi sinyal beli di *timeframe* kecil (misal `15m`). Terbukti ampuh mencegah jebakan *Bull Trap*.
+
+### Changed
+- **Zero-Fee Maker Strategy**: Merombak total logika eksekusi *Trade*. Eksekusi `BUY` dan `HARD TP` kini secara ketat dipaksa menggunakan antrean *Limit Order* (Maker) untuk menikmati potongan *Fee* 0% dari bursa. Sementara `SELL` akibat *Stop Loss* / *Trailing* tetap menggunakan *Market Order* (Taker 0.1%) sebagai prosedur darurat.
+- **Single-Coin Pro Focus**: Membatalkan arsitektur *Multi-Coin* eksperimental dan mengembalikan fokus mesin utama ke *Single-Coin* murni. Memastikan alokasi memori, sinkronisasi *thread*, dan kecepatan respons bot berada di tingkat maksimal untuk satu aset spesifik.
+- **Mean Reversion Scalping (Buy The Dip)**: Merombak total parameter strategi `SCALP` dari *Trend Following* menjadi *Mean Reversion*. Interval diubah ke `5m`, batasan RSI diturunkan secara drastis untuk mencari harga diskon/panik (*oversold*), dan syarat volume dilonggarkan agar bot berani menangkap peluang saat pasar sedang koreksi tajam.
+
+### Fixed
+- **Backtest Fee Buffer Crash**: Memperbaiki `NameError` pada `backtest.py` dengan menyesuaikan rumus perhitungan *Break-Even* menggunakan pemisahan biaya secara akurat (`fee_maker` + `fee_taker`).
+- **ADX Contradiction on Scalp**: Memperbaiki masalah di mana bot menolak melakukan *trading* pada mode Scalp akibat syarat ADX > 25 yang bertentangan dengan syarat RSI rendah. Logika ADX kini diabaikan/dimatikan khusus untuk strategi SCALP di dalam mesin *backtest* maupun *live*.
+
 ## [2.0.0] - 2026-04-18
 ### Added
 - **Decoupled Full-Stack Architecture**: Perubahan fundamental arsitektur dengan memisahkan mesin inti (`main.py`) dari server antarmuka (`api_server.py`). Memungkinkan Dashboard Web tetap berjalan stabil meskipun mesin trading sedang dalam kondisi *restart* atau *crash*.
@@ -139,13 +154,12 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 - **Telegram Notifier**: Integrasi pengiriman sinyal dan status bot ke Telegram.
 - **Simulation Mode**: Fitur Dry Run untuk testing tanpa menggunakan saldo asli.
 
-### Tips Penggunaan (Update):
+### Tips Penggunaan (Update V2.1.0):
 
-* **Manajemen Harapan & Fee**: Pada strategi Scalp, sadari bahwa target `0.7%` atau `1.5%` mungkin terdengar kecil, namun itu diformulasikan untuk tetap menghasilkan Profit Bersih (Nett) *setelah* dipotong biaya trading MEXC (Beli + Jual).
-* **Monitoring Responsif**: Saat posisi aktif (`active_trade = True`), bot akan meningkatkan frekuensi pengecekan harga (setiap 3-5 detik). Ini normal dan bertujuan agar *Stop Loss* tereksekusi tepat waktu.
-* **Keamanan Shutdown**: Jika ingin mematikan bot saat trading riil, gunakan `Ctrl + C` di terminal agar bot sempat menutup posisi. Menutup paksa jendela terminal secara langsung akan mematikan bot tanpa sempat menjual aset yang sedang di-hold.
-* **Optimasi API**: Gunakan `delay_scan` yang lebih tinggi (>60s) pada timeframe besar untuk menghindari *rate limit* API jika kamu berencana memantau banyak koin.
-* **Ganti Koin Cepat**: Gunakan `/symbol BTCUSDT` untuk berpindah fokus ke aset dengan likuiditas tinggi jika pasar sedang mengalami volatilitas ekstrem yang tidak menentu.
-* **Akurasi EMA**: Jika kamu menggunakan timeframe besar (seperti 1h atau 4h), pastikan bot dibiarkan menyala beberapa saat agar perhitungan EMA 200 benar-benar stabil mengikuti pergerakan harga terbaru.
-* **Gunakan Mode SCALP**: untuk koin dengan volatilitas tinggi (seperti XRP, SIREN, atau koin gainers) untuk menangkap keuntungan cepat dari pantulan harga.
-* **Gunakan Mode TREND**: untuk koin dengan kapitalisasi pasar besar dan pergerakan stabil (seperti BTC, ETH, BNB) untuk memaksimalkan keuntungan dari tren jangka panjang yang terkonfirmasi.
+* **Manajemen Harapan & Fee**: Bot saat ini mengutamakan sistem Zero-Fee Maker (Antre Limit 0%), sehingga target TP sekecil 0.7% pada timeframe 5m sangat mungkin menghasilkan *Nett Profit* yang bersih.
+* **Gunakan Mesin Backtest**: JANGAN PERNAH mengubah konfigurasi secara acak. Gunakan perintah `python backtest.py` untuk menguji parameter Anda setiap kali Anda berpindah koin (Karakteristik Aset/Asset Personality).
+* **Monitoring Responsif**: Saat posisi aktif (`active_trade = True`), bot akan meningkatkan frekuensi pengecekan harga. Ini normal dan bertujuan agar *Break-Even* atau *Stop Loss* tereksekusi secepat kilat.
+* **Keamanan Shutdown**: Gunakan `Ctrl + C` di terminal agar bot sempat menjual koin secara otomatis jika Anda ingin menghentikan operasi secara total.
+* **Ganti Koin Cepat**: Gunakan `/symbol BTCUSDT` untuk berpindah ke aset dengan volatilitas tinggi, namun selalu sinkronkan dengan hasil backtest.
+* **Gunakan Mode SCALP**: Untuk menangkap "Pisau Jatuh" saat pasar sedang merah/koreksi (Mean Reversion).
+* **Gunakan Mode TREND**: Untuk koin dengan kapitalisasi pasar besar (BTC/ETH) yang bergerak searah dengan filter makro (MTF 4h).

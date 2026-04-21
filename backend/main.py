@@ -241,6 +241,43 @@ def get_balance():
             if b['asset'] in ['USDT', asset_name]: bal[b['asset']] = float(b['free'])
     return bal
 
+# --- CHECK BUY SIGNAL (MTF) ---
+def check_buy_signal(df: pd.DataFrame, conf: dict):
+    if df is None or df.empty: return False, 0.0
+
+    last, prev = df.iloc[-2], df.iloc[-3]
+    try:
+        ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}, timeout=5).json()
+        curr_price = float(ticker['askPrice'])
+    except: return False, 0.0
+        
+    curr_rsi, curr_adx = last['rsi'], last['adx']
+    rsi_moving_up = curr_rsi > prev['rsi'] 
+    found_hammer = is_hammer(last)         
+    volume_breakout = last['volume'] > (last['vol_sma'] * conf.get("vol_mult", 1.1))
+    
+    is_trending_market = True if STRATEGY_MODE == "SCALP" else prev['adx'] > 25.0
+    is_micro_uptrend = curr_price > last['ema_200'] if conf.get("use_ema_200", True) else True
+    rsi_healthy = (conf.get("rsi_min", 30) < curr_rsi < conf.get("rsi_max", 75))
+
+    # LOGIKA MULTI-TIMEFRAME (MTF) FILTER
+    is_macro_uptrend = True 
+    if conf.get('use_mtf', True):
+        macro_tf = conf.get('macro_interval', '4h')
+        df_macro = fetch_data(config.SYMBOL, macro_tf)
+        if df_macro is not None and not df_macro.empty:
+            if curr_price < df_macro.iloc[-2]['ema_200']:
+                is_macro_uptrend = False
+                logging.info(f"🚫 Sinyal Mikro valid, TAPI dibatalkan! Tren Makro ({macro_tf}) sedang Bearish.")
+
+    logging.info(f"🔍 [{STRATEGY_MODE}] Scan {config.SYMBOL} | Price: {curr_price} | RSI: {curr_rsi:.2f} | RSI_UP: {rsi_moving_up} | Hammer: {found_hammer}")
+
+    if is_micro_uptrend and is_macro_uptrend and rsi_healthy and rsi_moving_up and is_trending_market:
+        if found_hammer: return True, curr_price
+        elif curr_price > last['open'] and volume_breakout: return True, curr_price
+            
+    return False, curr_price
+
 # --- SISTEM TRADING EKSEKUSI ---
 def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_price: float = None):
     """
@@ -395,11 +432,28 @@ def monitor_position():
         logging.info(f"[{STRATEGY_MODE}] {config.SYMBOL} | Price: {curr_p} | Net PNL: {pnl_net*100:.2f}% | SL: {stop_loss:.4f} | TP: {tp_price:.4f}")
 
         if conf['use_hard_tp'] and curr_p >= tp_price:
-            logging.info(f"🎯 HARD TP HIT! Menjual...")
-            execute_trade('SELL', config.USDT_AMOUNT)
+            logging.info(f"🎯 HARD TP HIT! Menjual sebagai MAKER (0% Fee)...")
+            ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}).json()
+            ask_p = float(ticker['askPrice'])
+            
+            execute_trade('SELL', config.USDT_AMOUNT, order_type="LIMIT", forced_price=ask_p)
             active_trade, stop_loss, highest_p = False, 0.0, 0.0
             update_and_save_state()
             return
+        
+        # RISK-FREE TRADE (BREAK-EVEN)
+        # Tambahkan fee bursa (x2 untuk buy & sell) ditambah sedikit buffer 0.05%
+        fee_buffer = (config.EXCHANGE_FEE * 2) + 0.0005
+        break_even_price = entry_price * (1 + fee_buffer)
+        
+        # Ambil nilai breakeven_start dari config (misal 0.015). Jika tidak ada, gunakan 1.5% sebagai default.
+        trigger_breakeven = conf.get('breakeven_start', 0.015)
+        
+        # Jika profit kotor sudah melewati batas trigger, tapi SL masih di bawah harga Break-Even
+        if pnl_gross >= trigger_breakeven and stop_loss < break_even_price:
+            stop_loss = break_even_price
+            logging.info(f"🛡️ BREAK-EVEN AKTIF! Posisi sekarang Risk-Free. SL dinaikkan ke: {stop_loss:.4f}")
+            update_and_save_state()
 
         if pnl_gross >= conf['trail_start']: 
             new_sl = highest_p * (1 - conf['trail_dist']) 
@@ -409,7 +463,12 @@ def monitor_position():
                 update_and_save_state() 
 
         if curr_p <= stop_loss:
-            execute_trade('SELL', config.USDT_AMOUNT)
+            if stop_loss == break_even_price:
+                logging.info("🛡️ Tersenggol Break-Even. Aman (Impas)!")
+            else:
+                logging.info("🚨 SL/TRAILING HIT! Jual Market Darurat!")
+                
+            execute_trade('SELL', config.USDT_AMOUNT, order_type="MARKET")
             active_trade, stop_loss, highest_p = False, 0.0, 0.0
             update_and_save_state()
 
@@ -453,62 +512,26 @@ def trading_loop():
                 
                 # Skenario Beli Algoritma Penuh
                 elif df is not None and not df.empty:
-                    last = df.iloc[-2] # Candle yang ditutup terakhir
-                    prev = df.iloc[-3] # Candle pendahulunya
-                    
-                    ticker_realtime = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}).json()
-                    curr_price = float(ticker_realtime['askPrice'])
-                    
-                    # Parameter Konfirmasi Momentum
-                    curr_rsi = last['rsi']
-                    rsi_moving_up = curr_rsi > prev['rsi'] 
-                    found_hammer = is_hammer(last)         
-                    volume_breakout = last['volume'] > (last['vol_sma'] * conf["vol_mult"])
-
-                    curr_adx = last['adx']
-                    is_trending_market = curr_adx > 25.0 # ADX > 25 artinya tren kuat, hindari sideways
-                    
-                    logging.info(f"🔍 [{STRATEGY_MODE}] Scan {config.SYMBOL} | Price: {curr_price} | RSI: {curr_rsi:.2f} | Up: {rsi_moving_up} | Hammer: {found_hammer}")
-                    
-                    # Parameter Tren Utama
-                    is_uptrend = curr_price > last['ema_200'] if conf["use_ema_200"] else True
-                    rsi_healthy = (conf["rsi_min"] < curr_rsi < conf["rsi_max"])
-
-                    # Eksekusi Evaluasi Sinyal
-                    if is_uptrend and rsi_healthy and rsi_moving_up and is_trending_market:
-                        if found_hammer:
-                            trigger_buy = True
-                            logging.info(f"🚀 AGGRESSIVE ENTRY: Hammer Detected!")
-                        elif curr_price > last['open'] and volume_breakout:
-                            trigger_buy = True
-                            logging.info(f"🚀 STANDARD ENTRY: Bullish Momentum!")
-
-                        # Set SL Dasar Berdasarkan Volatilitas (ATR)
-                        if trigger_buy:
-                            stop_loss = curr_price - (last['atr'] * conf["sl_atr_mult"]) 
-                            highest_p = curr_price
-                            logging.info(f"✅ {STRATEGY_MODE} SIGNAL VALID! SL: {stop_loss:.4f}")
+                    is_signal, c_price = check_buy_signal(df, conf)
+                    if is_signal:
+                        trigger_buy = True
+                        last = df.iloc[-2]
+                        temp_sl = c_price - (last['atr'] * conf.get("sl_atr_mult", 1.5)) 
+                        max_minus_price = c_price * (1 - 0.05) # Hard cap SL -5%
+                        if temp_sl < max_minus_price: temp_sl = max_minus_price
+                        
+                        stop_loss = temp_sl
+                        highest_p = c_price
+                        logging.info(f"✅ {STRATEGY_MODE} SIGNAL VALID! SL: {stop_loss:.4f}")
 
                 # Melaksanakan Trigger jika diputuskan Beli
                 if trigger_buy and not active_trade:
-                    is_safe, current_spread = check_spread(config.SYMBOL, 2.0) 
+                    ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}).json()
+                    bid_p = float(ticker['bidPrice'])
                     
-                    if is_safe:
-                        info = get_symbol_info(config.SYMBOL)
-                        ticker_res = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}).json()
-                        bid_price = float(ticker_res['bidPrice'])
-                        ask_price = float(ticker_res['askPrice'])
-                        
-                        # Keputusan Pintar (Front-Running vs Market)
-                        if current_spread <= 0.05:
-                            execute_trade('BUY', config.USDT_AMOUNT, order_type="MARKET")
-                        else:
-                            tick_size = info['price_step'] 
-                            limit_price = bid_price + tick_size 
-                            if limit_price >= ask_price: limit_price = bid_price 
-
-                            logging.info(f"🟡 Mengantre di depan (Bid+1): {limit_price}")
-                            execute_trade('BUY', config.USDT_AMOUNT, order_type="LIMIT", forced_price=limit_price)
+                    # 💎 ZERO-FEE MAKER: Selalu antre di harga Bid terbaik (Tidak memakan harga Ask)
+                    logging.info(f"💎 ZERO-FEE MAKER: Antre Beli persis di {bid_p}")
+                    execute_trade('BUY', config.USDT_AMOUNT, order_type="LIMIT", forced_price=bid_p)
                 
                 # Jeda Pemindaian Adaptif (Cepat saat Scalp, Lambat saat Trend)
                 if not active_trade:

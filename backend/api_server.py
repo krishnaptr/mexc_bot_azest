@@ -34,16 +34,32 @@ DEFAULT_SETTINGS = {
     "general": {
         "symbol": "BTCUSDT", "usdt_amount": 50.0, "dry_run": True
     },
-    "trend": {
-        "interval": "15m", "rsi_min": 30, "rsi_max": 75, "vol_mult": 1.1,
-        "use_ema_200": True, "tp_percent": 0.04, "sl_atr_mult": 1.5, 
-        "trail_start": 0.02, "trail_dist": 0.01, "delay_scan": 60, "use_hard_tp": True
-    },
-    "scalp": {
-        "interval": "1m", "rsi_min": 20, "rsi_max": 52, "vol_mult": 1.0,
-        "use_ema_200": True, "tp_percent": 0.02, "sl_atr_mult": 2.5, 
-        "trail_start": 0.015, "trail_dist": 0.008, "delay_scan": 10, "use_hard_tp": True
-    }
+"trend": {
+            "interval": "15m", 
+            "rsi_min": 40,             # Naikkan sedikit. Koin uptrend jarang turun sampai 25.
+            "rsi_max": 72,             # LONGGARKAN. Beri izin bot membeli saat momentum sedang kuat (RSI 40-72).
+            "vol_mult": 0.5,           # Syarat volume ringan (50% dari rata-rata), agar membuang sinyal sepi.
+            "use_ema_200": True, 
+            "tp_percent": 0.025,       # TP 2.5% 
+            "sl_atr_mult": 2.5,        # SL napas panjang
+            "breakeven_start": 0.012,  # Amankan modal di +1.2%
+            "trail_start": 0.015,      # Mulai trailing di +1.5%
+            "trail_dist": 0.005,       
+            "delay_scan": 60, "use_hard_tp": True, "use_mtf": True, "macro_interval": "4h"
+        },
+"scalp": {
+            "interval": "5m",          # Habitat asli Scalper
+            "rsi_min": 20,             
+            "rsi_max": 45,             # Cari yang sedang oversold/koreksi
+            "vol_mult": 0.8,           
+            "use_ema_200": False,      
+            "tp_percent": 0.007,       # TARGET KECIL: 0.7%. Sangat mudah tersentuh di 5m.
+            "sl_atr_mult": 2.5,        
+            "breakeven_start": 0.004,  # Amankan modal secepatnya saat untung 0.4%
+            "trail_start": 0.005,      # Mulai membuntuti harga di 0.5%
+            "trail_dist": 0.002,       # Jarak trailing sangat ketat (0.2%)
+            "delay_scan": 10, "use_hard_tp": True, "use_mtf": False, "macro_interval": "1h"
+        }
 }
 
 def read_settings():

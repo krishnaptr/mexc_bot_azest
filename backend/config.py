@@ -58,15 +58,31 @@ def get_settings():
             "usdt_amount": 50.0,
             "dry_run": True
         },
-        "trend": {
-        "interval": "15m", "rsi_min": 30, "rsi_max": 75, "vol_mult": 1.1,
-        "use_ema_200": True, "tp_percent": 0.04, "sl_atr_mult": 1.5, 
-        "trail_start": 0.02, "trail_dist": 0.01, "delay_scan": 60, "use_hard_tp": True
+"trend": {
+            "interval": "15m", 
+            "rsi_min": 40,             # Koin uptrend jarang turun sampai 25.
+            "rsi_max": 72,             # Beri izin bot membeli saat momentum sedang kuat (RSI 40-72).
+            "vol_mult": 0.5,           # Syarat volume ringan (50% dari rata-rata), agar membuang sinyal sepi.
+            "use_ema_200": True, 
+            "tp_percent": 0.025,       # TP 2.5% 
+            "sl_atr_mult": 2.5,        # SL napas panjang
+            "breakeven_start": 0.012,  # Amankan modal di +1.2%
+            "trail_start": 0.015,      # Mulai trailing di +1.5%
+            "trail_dist": 0.005,       
+            "delay_scan": 60, "use_hard_tp": True, "use_mtf": True, "macro_interval": "4h"
         },
-        "scalp": {
-        "interval": "1m", "rsi_min": 20, "rsi_max": 52, "vol_mult": 1.0,
-        "use_ema_200": True, "tp_percent": 0.02, "sl_atr_mult": 2.5, 
-        "trail_start": 0.015, "trail_dist": 0.008, "delay_scan": 10, "use_hard_tp": True
+"scalp": {
+            "interval": "5m",         
+            "rsi_min": 20,             
+            "rsi_max": 45,             # Cari yang sedang oversold/koreksi
+            "vol_mult": 0.8,           
+            "use_ema_200": False,      
+            "tp_percent": 0.007,       # TARGET KECIL: 0.7%. Sangat mudah tersentuh di 5m.
+            "sl_atr_mult": 2.5,        
+            "breakeven_start": 0.004,  # Amankan modal secepatnya saat untung 0.4%
+            "trail_start": 0.005,      # Mulai membuntuti harga di 0.5%
+            "trail_dist": 0.002,       # Jarak trailing sangat ketat (0.2%)
+            "delay_scan": 10, "use_hard_tp": True, "use_mtf": False, "macro_interval": "1h"
         }
     }
 
@@ -75,7 +91,7 @@ def get_settings():
 # 1. Kacamata Waktu & Kecepatan (Waktu)
 # *`interval` (Waktu Grafik):* *Fungsi:* Menentukan dari kacamata mana bot melihat grafik. 
 #     Trend (`15m`):* Melihat lilin (candle) 15 menitan. Pergerakan lebih stabil dan minim sinyal palsu.
-#     Scalp (`1m`):* Melihat lilin 1 menitan. Sangat cepat, agresif, dan penuh dengan riak (noise).
+#     Scalp (`5m`):* Melihat lilin 1 menitan. Sangat cepat, agresif, dan penuh dengan riak (noise).
 # *`delay_scan` (Waktu Istirahat):
 #     Fungsi:* Waktu tunggu (dalam detik) sebelum bot mengecek harga lagi setelah satu putaran selesai.
 #     Trend (`60`):* Cek setiap 1 menit. Cocok karena grafik 15m tidak berubah tiap detik.
@@ -107,3 +123,7 @@ def get_settings():
 #     Fungsi:* Ini adalah fitur tercanggih. Jika harga belum menyentuh Take Profit (TP), tapi sudah mulai naik lumayan tinggi, bot akan "membangun" titik Stop Loss baru yang mengikuti harga naik dari bawah untuk mengunci profit.
 #     Trend (`start: 0.02, dist: 0.01`):* Jika harga naik +2%, fitur aktif. Bot akan terus mengikuti dari jarak -1% di bawah pucuk harga. Jika harga tiba-tiba berbalik arah dan turun 1%, bot langsung menjual dengan sisa profit 1%.
 #     Scalp (`start: 0.015, dist: 0.008`):* Fitur aktif lebih cepat saat harga baru naik 1.5%.
+# *`breakeven_start`:
+#     Fungsi:* Fitur untuk otomatis menaikan SL jika sudah menyentuh minimal profit yang di tentukan.
+#     Trend (`0.015`):* akan di trigger jika profit sudah +1.5%.
+#     Scalp (`0.008`):* akan di trigger jika profit sudah +0.8%.
