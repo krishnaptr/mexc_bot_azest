@@ -95,6 +95,8 @@ def sync_dashboard_data():
     config.SYMBOL = latest_cfg['general']['symbol']
     config.USDT_AMOUNT = latest_cfg['general']['usdt_amount']
     config.DRY_RUN = latest_cfg['general']['dry_run']
+    config.USE_COMPOUNDING = latest_cfg['general'].get('use_compounding', False)
+    config.RISK_PERCENTAGE = latest_cfg['general'].get('risk_percentage', 5.0)
     config.STRATEGIES = {
         "TREND": latest_cfg['trend'],
         "SCALP": latest_cfg['scalp']
@@ -477,12 +479,21 @@ def monitor_position():
 
 def trading_loop():
     """Jantung bot. Mengatur ritme antara Standby, Memantau Harga, atau Mencari Sinyal Baru."""
-    global bot_active, force_buy, active_trade, stop_loss, highest_p, STRATEGY_MODE
+    global bot_active, force_buy, active_trade, stop_loss, highest_p, STRATEGY_MODE, paper_usdt_balance
     logging.info(f"Jalur Trading Siap. Mode: {'DRY RUN' if config.DRY_RUN else 'REAL MONEY'} | Strategy: {STRATEGY_MODE}")
     
     while True:
         sync_dashboard_data()
         conf = config.STRATEGIES[STRATEGY_MODE] 
+
+        if not config.API_KEY and not config.DRY_RUN:
+            logging.error("🚨 API KEY KOSONG! Mode LIVE dimatikan demi keamanan.")
+            telegram_bot.send_message("🚨 *CRITICAL ERROR*\nAPI Key kosong saat mode LIVE! Bot otomatis dijeda.")
+            bot_active = False
+            update_and_save_state()
+            time.sleep(5)
+            continue
+        
         try:
             # 1. Bot sedang diam dimatikan via /stop
             if not bot_active:
@@ -529,9 +540,29 @@ def trading_loop():
                     ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}).json()
                     bid_p = float(ticker['bidPrice'])
                     
+                    # Menggunakan getattr untuk mencegah error jika config belum terupdate
+                    if getattr(config, 'USE_COMPOUNDING', False):
+                        if config.DRY_RUN:
+                            current_balance = paper_usdt_balance
+                        else:
+                            current_balance = get_balance().get('USDT', 0.0)
+                            
+                        # Hitung persentase dari modal
+                        trade_amount = current_balance * (getattr(config, 'RISK_PERCENTAGE', 5.0) / 100.0)
+                        
+                        # MEXC punya batas minimum transaksi (biasanya $5)
+                        if trade_amount < 5.0: 
+                            trade_amount = 5.0
+                    else:
+                        # Fallback ke modal tetap jika compounding dimatikan
+                        trade_amount = config.USDT_AMOUNT
+
+                    logging.info(f"💸 Mengalokasikan dana trade sebesar: ${trade_amount:.2f}")
+                    # ==========================================
+                    
                     # 💎 ZERO-FEE MAKER: Selalu antre di harga Bid terbaik (Tidak memakan harga Ask)
                     logging.info(f"💎 ZERO-FEE MAKER: Antre Beli persis di {bid_p}")
-                    execute_trade('BUY', config.USDT_AMOUNT, order_type="LIMIT", forced_price=bid_p)
+                    execute_trade('BUY', trade_amount, order_type="LIMIT", forced_price=bid_p)
                 
                 # Jeda Pemindaian Adaptif (Cepat saat Scalp, Lambat saat Trend)
                 if not active_trade:
@@ -574,6 +605,22 @@ def send_chart():
     except Exception as e:
         logging.error(f"Gagal kirim chart: {e}")
 
+def heartbeat_loop():
+    """Thread khusus untuk mengirim detak jantung ke JSON setiap 5 detik"""
+    while True:
+        try:
+            if os.path.exists(config.STATE_FILE):
+                with open(config.STATE_FILE, "r") as f:
+                    data = json.load(f)
+                
+                data["last_heartbeat"] = time.time()
+                
+                with open(config.STATE_FILE, "w") as f:
+                    json.dump(data, f)
+        except:
+            pass
+        time.sleep(5) # Berdetak setiap 5 detik
+
 # --- MAIN EXECUTION (Garis Start) ---
 if __name__ == "__main__":
     database.init_db() # Inisialisasi database
@@ -589,6 +636,9 @@ if __name__ == "__main__":
     if not config.API_KEY:
         logging.error("❌ ERROR: API KEY tidak ditemukan di konfigurasi!")
         sys.exit()
+    
+    t_heartbeat = threading.Thread(target=heartbeat_loop, daemon=True)
+    t_heartbeat.start()
     
     # Jalankan Telegram di latar belakang, berikan file main.py (sys.modules[__name__]) 
     # sebagai "remote control" kepada file telegram_bot.py
@@ -614,9 +664,22 @@ if __name__ == "__main__":
                 
     except KeyboardInterrupt:
         # Pemicu Graceful Shutdown jika Anda menekan Ctrl+C
-        bot_active = False 
+        bot_active = False
+        update_and_save_state()
         print("\n🛑 Signal Shutdown Diterima (Ctrl+C)...")
         time.sleep(1) 
+
+        try:
+            with open(config.STATE_FILE, "r") as f:
+                state = json.load(f)
+            
+            state["is_active"] = False
+            state["last_heartbeat"] = 0 
+            
+            with open(config.STATE_FILE, "w") as f:
+                json.dump(state, f)
+        except Exception as e:
+            pass
 
         # Auto-Sell Protektif untuk menyelamatkan aset yang ditinggal mati
         if active_trade:

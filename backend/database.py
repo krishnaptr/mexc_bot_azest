@@ -21,8 +21,7 @@ def load_state():
                 return json.load(f)
         except Exception as e:
             logging.error(f"Gagal memuat state: {e}")
-    
-    # Nilai default jika file belum ada
+
     return {
         "active_trade": False,
         "entry_price": 0.0,

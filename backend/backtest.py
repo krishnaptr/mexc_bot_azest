@@ -7,7 +7,7 @@ import config
 print("⏳ Menginisialisasi Mesin Backtest...")
 
 # 1. AMBIL KONFIGURASI
-STRATEGY = "SCALP"
+STRATEGY = "TREND"
 conf = config.get_settings()[STRATEGY.lower()]
 symbol = config.get_settings()['general']['symbol']
 interval = conf['interval']
@@ -33,6 +33,8 @@ df['adx'] = ta.adx(df['high'], df['low'], df['close'], length=14)['ADX_14']
 
 # 4. VARIABEL SIMULASI
 balance = 1000.0 # Modal awal virtual $1000
+use_compounding = config.get_settings()['general'].get('use_compounding', False)
+risk_percentage = config.get_settings()['general'].get('risk_percentage', 5.0)
 usdt_per_trade = config.get_settings()['general']['usdt_amount']
 position_size = 0.0
 entry_price = 0.0
@@ -117,6 +119,10 @@ for i in range(200, len(df)):
         volume_breakout = prev['volume'] > (prev['vol_sma'] * conf['vol_mult'])
         
         if is_uptrend and rsi_healthy and rsi_moving_up and is_trending and volume_breakout:
+            if use_compounding:
+                usdt_per_trade = balance * (risk_percentage / 100.0)
+                if usdt_per_trade < 5.0: usdt_per_trade = 5.0
+
             # Beli di harga open candle saat ini
             entry_price = curr['open']
             position_size = usdt_per_trade / entry_price

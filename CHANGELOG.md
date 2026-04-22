@@ -1,6 +1,20 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [2.2.0] - 2026-04-22
+### Added
+- **Dynamic Position Sizing (Compounding)**: Menambahkan fitur "Efek Bola Salju". Bot kini dapat diatur untuk meresikokan persentase spesifik dari total saldo (misal: 5%) alih-alih jumlah USDT statis. Memungkinkan ekskalasi profit eksponensial seiring bertumbuhnya modal, sekaligus memberikan proteksi saat terjadi *drawdown*.
+- **Auto-Sync `.env` to JSON**: Mengimplementasikan logika sinkronisasi pintar pada `config.py` dan `api_server.py`. Bot kini otomatis menarik kredensial rahasia dari file `.env` lokal dan menyimpannya secara permanen ke `settings.json` jika terdeteksi kosong, mencegah isu hilangnya memori (amnesia) pada sistem.
+- **Independent Heartbeat Thread**: Menambahkan *thread* khusus (`heartbeat_loop`) di `main.py` yang bertugas mengirimkan "detak jantung" ke sistem setiap 5 detik secara konstan, tidak peduli apakah bot sedang sibuk memindai pasar atau sedang dalam fase *sleep*/*delay*.
+- **Dashboard UI Security Lock**: Menonaktifkan (disable) inputan API Key dan Secret Key pada antarmuka Web Dashboard. Memaksa penerapan metodologi *12-Factor App* di mana `.env` menjadi satu-satunya sumber kebenaran (*Single Source of Truth*) demi keamanan tingkat *Enterprise*.
+
+### Changed
+- **API Server Optimization**: Membersihkan fungsi `get_bot_stats()` di `api_server.py`. Menghapus pemanggilan pembacaan file yang berulang (redundan) dan mengembalikan ambang batas (*threshold*) deteksi *heartbeat* ke 15 detik agar Dashboard lebih responsif.
+
+### Fixed
+- **Phantom State / Dashboard Lag**: Memperbaiki masalah di mana Dashboard masih mengira bot berstatus "Aktif" beberapa detik setelah dimatikan paksa. Diatasi dengan menanamkan "Protokol Pesan Kematian" pada `KeyboardInterrupt`; bot kini akan langsung mengatur `last_heartbeat` ke angka `0` sesaat sebelum mati, memaksa Dashboard untuk langsung merubah status ke "Jeda" dalam hitungan milidetik.
+- **Live Mode API Key Guard**: Menambal celah keamanan di mana bot masih bisa terus berjalan pada mode LIVE tanpa API Key. Menambahkan "Satpam API" di dalam `trading_loop` yang akan langsung mengirim notifikasi Telegram, mematikan operasi, dan menidurkan mesin jika terdeteksi mode LIVE namun kredensial kosong.
+
 ## [2.1.0] - 2026-04-21
 ### Added
 - **Standalone Backtest Engine (`backtest.py`)**: Menambahkan skrip mesin waktu independen untuk menguji parameter strategi secara matematis terhadap 1000 *candle* historis di MEXC. Memberikan laporan detail terkait *Win Rate*, Total Trade, dan Net Profit sebelum bot dijalankan dengan uang riil.
@@ -154,12 +168,13 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 - **Telegram Notifier**: Integrasi pengiriman sinyal dan status bot ke Telegram.
 - **Simulation Mode**: Fitur Dry Run untuk testing tanpa menggunakan saldo asli.
 
-### Tips Penggunaan (Update V2.1.0):
+### Tips Penggunaan (Update V2.2.0):
 
+* **Bahaya Drawdown (Compounding)**: Jika Anda mengaktifkan fitur Compounding (`use_compounding: True`), selalu jaga agar `risk_percentage` di bawah 10% untuk mencegah kebangkrutan saat mengalami kekalahan beruntun (*Losing Streak*).
 * **Manajemen Harapan & Fee**: Bot saat ini mengutamakan sistem Zero-Fee Maker (Antre Limit 0%), sehingga target TP sekecil 0.7% pada timeframe 5m sangat mungkin menghasilkan *Nett Profit* yang bersih.
 * **Gunakan Mesin Backtest**: JANGAN PERNAH mengubah konfigurasi secara acak. Gunakan perintah `python backtest.py` untuk menguji parameter Anda setiap kali Anda berpindah koin (Karakteristik Aset/Asset Personality).
 * **Monitoring Responsif**: Saat posisi aktif (`active_trade = True`), bot akan meningkatkan frekuensi pengecekan harga. Ini normal dan bertujuan agar *Break-Even* atau *Stop Loss* tereksekusi secepat kilat.
-* **Keamanan Shutdown**: Gunakan `Ctrl + C` di terminal agar bot sempat menjual koin secara otomatis jika Anda ingin menghentikan operasi secara total.
+* **Keamanan Shutdown**: Gunakan `Ctrl + C` di terminal agar bot sempat menjual koin secara otomatis dan mengirim "Pesan Kematian" ke Dashboard jika Anda ingin menghentikan operasi secara total.
 * **Ganti Koin Cepat**: Gunakan `/symbol BTCUSDT` untuk berpindah ke aset dengan volatilitas tinggi, namun selalu sinkronkan dengan hasil backtest.
 * **Gunakan Mode SCALP**: Untuk menangkap "Pisau Jatuh" saat pasar sedang merah/koreksi (Mean Reversion).
 * **Gunakan Mode TREND**: Untuk koin dengan kapitalisasi pasar besar (BTC/ETH) yang bergerak searah dengan filter makro (MTF 4h).

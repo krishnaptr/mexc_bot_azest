@@ -25,29 +25,29 @@
         </div>
         <div>
           <h3 class="text-xl font-bold text-slate-800 dark:text-white">API & Keamanan (ENV)</h3>
-          <p class="text-xs text-slate-400 mt-1">Kredensial MEXC dan Telegram Anda.</p>
+          <p class="text-xs text-slate-400 mt-1">Kredensial MEXC dan Telegram ( dari .env ).</p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="flex flex-col gap-2">
           <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">MEXC API Key</label>
-          <input pInputText type="password" [(ngModel)]="envConfig.api_key" placeholder="Masukkan API Key..." class="w-full rounded-xl" />
+          <input [disabled]="true" pInputText type="password" [(ngModel)]="envConfig.api_key" placeholder="Masukkan API Key..." class="w-full rounded-xl" />
         </div>
 
         <div class="flex flex-col gap-2">
           <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">MEXC Secret Key</label>
-          <input pInputText type="password" [(ngModel)]="envConfig.secret_key" placeholder="Masukkan Secret Key..." class="w-full rounded-xl" />
+          <input [disabled]="true" pInputText type="password" [(ngModel)]="envConfig.secret_key" placeholder="Masukkan Secret Key..." class="w-full rounded-xl" />
         </div>
 
         <div class="flex flex-col gap-2">
           <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Telegram Bot Token</label>
-          <input pInputText type="password" [(ngModel)]="envConfig.tele_token" placeholder="123456789:ABCdef..." class="w-full rounded-xl" />
+          <input [disabled]="true" pInputText type="password" [(ngModel)]="envConfig.tele_token" placeholder="123456789:ABCdef..." class="w-full rounded-xl" />
         </div>
 
         <div class="flex flex-col gap-2">
           <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Telegram Chat ID</label>
-          <input pInputText type="text" [(ngModel)]="envConfig.tele_chat_id" placeholder="Misal: 987654321" class="w-full rounded-xl" />
+          <input [disabled]="true" pInputText type="text" [(ngModel)]="envConfig.tele_chat_id" placeholder="Misal: 987654321" class="w-full rounded-xl" />
         </div>
       </div>
     </div>
@@ -88,7 +88,7 @@
         <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
           <i class="pi pi-chart-line text-xl"></i>
         </div>
-        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Strategi TREND (15m)</h3>
+        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Strategi TREND</h3>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -153,7 +153,7 @@
         <div class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400">
           <i class="pi pi-bolt text-xl"></i>
         </div>
-        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Strategi SCALP (1m)</h3>
+        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Strategi SCALP</h3>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

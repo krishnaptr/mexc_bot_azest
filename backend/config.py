@@ -31,17 +31,39 @@ def get_settings():
             with open(SETTINGS_FILE, "r") as f:
                 data = json.load(f)
                 
-                # Timpa nilai ENV dari .env lokal jika di JSON kosong
-                if not data['env'].get('api_key'):
-                    data['env']['api_key'] = os.getenv('API_KEY', '').strip() or ""
-                if not data['env'].get('secret_key'):
-                    data['env']['secret_key'] = os.getenv('SECRET_KEY', '').strip() or ""
-                if not data['env'].get('tele_token'):
-                    data['env']['tele_token'] = os.getenv('TELEGRAM_TOKEN', '').strip() or ""
-                if not data['env'].get('tele_chat_id'):
-                    data['env']['tele_chat_id'] = os.getenv('TELEGRAM_CHAT_ID', '').strip() or ""
+            needs_save = False
+            
+            # Timpa nilai ENV dari .env lokal jika di JSON kosong, dan tandai untuk di-save
+            if not data['env'].get('api_key'):
+                env_val = os.getenv('API_KEY', '').strip()
+                if env_val:
+                    data['env']['api_key'] = env_val
+                    needs_save = True
                     
-                return data
+            if not data['env'].get('secret_key'):
+                env_val = os.getenv('SECRET_KEY', '').strip()
+                if env_val:
+                    data['env']['secret_key'] = env_val
+                    needs_save = True
+                    
+            if not data['env'].get('tele_token'):
+                env_val = os.getenv('TELEGRAM_TOKEN', '').strip()
+                if env_val:
+                    data['env']['tele_token'] = env_val
+                    needs_save = True
+                    
+            if not data['env'].get('tele_chat_id'):
+                env_val = os.getenv('TELEGRAM_CHAT_ID', '').strip()
+                if env_val:
+                    data['env']['tele_chat_id'] = env_val
+                    needs_save = True
+            
+            # Jika ada data baru yang ditarik dari .env, PERMANENKAN ke settings.json
+            if needs_save:
+                with open(SETTINGS_FILE, "w") as f_out:
+                    json.dump(data, f_out, indent=4)
+                    
+            return data
         except Exception as e:
             print(f"Gagal membaca settings.json: {e}")
             
@@ -56,6 +78,8 @@ def get_settings():
         "general": {
             "symbol": "BTCUSDT",
             "usdt_amount": 50.0,
+            "use_compounding": True,
+            "risk_percentage": 5.0,
             "dry_run": True
         },
 "trend": {

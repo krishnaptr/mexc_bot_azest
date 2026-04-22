@@ -63,13 +63,46 @@ DEFAULT_SETTINGS = {
 }
 
 def read_settings():
-    """Membaca pengaturan dari file JSON"""
+    """Membaca pengaturan dari file JSON, dan otomatis menarik dari .env jika kosong"""
+    data = DEFAULT_SETTINGS.copy()
+    needs_save = False
+    
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
         except: pass
-    return DEFAULT_SETTINGS
+
+    # Sinkronisasi Otomatis dari .env ke JSON
+    if not data.get("env", {}).get("api_key"):
+        env_val = os.getenv("API_KEY", "").strip()
+        if env_val:
+            data.setdefault("env", {})["api_key"] = env_val
+            needs_save = True
+            
+    if not data.get("env", {}).get("secret_key"):
+        env_val = os.getenv("SECRET_KEY", "").strip()
+        if env_val:
+            data.setdefault("env", {})["secret_key"] = env_val
+            needs_save = True
+            
+    if not data.get("env", {}).get("tele_token"):
+        env_val = os.getenv("TELEGRAM_TOKEN", "").strip()
+        if env_val:
+            data.setdefault("env", {})["tele_token"] = env_val
+            needs_save = True
+            
+    if not data.get("env", {}).get("tele_chat_id"):
+        env_val = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        if env_val:
+            data.setdefault("env", {})["tele_chat_id"] = env_val
+            needs_save = True
+            
+    # Jika ada yang kosong dan berhasil diisi oleh .env, simpan ke file
+    if needs_save:
+        write_settings(data)
+        
+    return data
 
 def write_settings(data):
     """Menyimpan pengaturan ke file JSON"""
@@ -150,31 +183,25 @@ def get_real_usdt_balance(api_key, secret_key):
 def get_bot_stats():
     """Endpoint untuk Kartu Statistik di Dashboard Atas (Live & Simulasi Terpisah)."""
     try:
-        # 1. BACA SETTINGS UNTUK MENENTUKAN JALUR
+        # 1. BACA SETTINGS & STATE (Cukup panggil 1 kali saja)
         settings = read_settings()
         is_dry_run = settings.get("general", {}).get("dry_run", True)
         api_key = settings.get("env", {}).get("api_key", "")
         secret_key = settings.get("env", {}).get("secret_key", "")
         
-        # Tentukan filter database (Asumsi kolom di SQLite bernama 'mode')
-        mode_filter = "SIMULASI" if is_dry_run else "LIVE"
-
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-
         state = read_bot_state()
         is_active_intent = state.get("is_active", True)
         last_heartbeat = state.get("last_heartbeat", 0)
         
-        # Hitung selisih waktu sekarang dengan detak jantung terakhir
+        # Tentukan filter database (Asumsi kolom di SQLite bernama 'mode')
+        mode_filter = "SIMULASI" if is_dry_run else "LIVE"
         current_time = time.time()
-        # Jika lebih dari 15 detik tidak ada update, berarti main.py mati
         is_engine_alive = (current_time - last_heartbeat) < 15
 
-        settings = read_settings() 
-        is_dry_run = settings.get("general", {}).get("dry_run", True)
+        # 2. HITUNG STATISTIK DARI DATABASE
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
         
-        # 2. HITUNG STATISTIK (HANYA UNTUK MODE YANG AKTIF SAAT INI)
         try:
             cursor.execute("SELECT COUNT(*) FROM trades WHERE side='SELL' AND mode=?", (mode_filter,))
             total_trades = cursor.fetchone()[0] or 0
@@ -196,7 +223,7 @@ def get_bot_stats():
         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
         conn.close()
         
-        # 3. PERHITUNGAN SALDO (EQUITY) YANG TEPAT
+        # 3. PERHITUNGAN SALDO (EQUITY)
         if is_dry_run:
             # Jika simulasi, gunakan modal virtual statis
             MODAL_AWAL_SIMULASI = 1000.0
@@ -205,8 +232,6 @@ def get_bot_stats():
             # Jika Uang Asli, tembak API MEXC untuk melihat sisa USDT aktual di dompet
             equity = get_real_usdt_balance(api_key, secret_key)
             
-        state = read_bot_state()
-        
         return {
             "status": "success",
             "is_active": is_active_intent and is_engine_alive,
