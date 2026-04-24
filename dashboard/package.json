@@ -1,6 +1,6 @@
 {
-  "name": "dashboard",
-  "version": "0.0.0",
+  "name": "azest_bot",
+  "version": "2.3.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",

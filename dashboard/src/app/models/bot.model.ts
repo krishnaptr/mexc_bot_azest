@@ -7,6 +7,7 @@ export interface BotStats {
   equity: number;
   total_net_pnl_percent: number;
   dry_run: boolean;
+  position: any;
 }
 
 export interface TradeRecord {

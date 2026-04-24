@@ -1,10 +1,16 @@
 <div class="animate-fadein max-w-4xl mx-auto">
-  <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+  <div
+    class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4"
+  >
     <div>
-      <h2 class="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight transition-colors duration-300">
+      <h2
+        class="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight transition-colors duration-300"
+      >
         Konfigurasi Bot
       </h2>
-      <p class="text-slate-400 dark:text-slate-500 mt-1 transition-colors duration-300">
+      <p
+        class="text-slate-400 dark:text-slate-500 mt-1 transition-colors duration-300"
+      >
         Sesuaikan parameter algoritma dan manajemen risiko.
       </p>
     </div>
@@ -18,64 +24,178 @@
   </div>
 
   <div class="grid grid-cols-1 gap-8">
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300"
+    >
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-600 dark:text-rose-400">
+        <div
+          class="w-10 h-10 bg-rose-50 dark:bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-600 dark:text-rose-400"
+        >
           <i class="pi pi-key text-xl"></i>
         </div>
         <div>
-          <h3 class="text-xl font-bold text-slate-800 dark:text-white">API & Keamanan (ENV)</h3>
-          <p class="text-xs text-slate-400 mt-1">Kredensial MEXC dan Telegram ( dari .env ).</p>
+          <h3 class="text-xl font-bold text-slate-800 dark:text-white">
+            API & Keamanan (ENV)
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">
+            Kredensial MEXC dan Telegram ( dari .env ).
+          </p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">MEXC API Key</label>
-          <input [disabled]="true" pInputText type="password" [(ngModel)]="envConfig.api_key" placeholder="Masukkan API Key..." class="w-full rounded-xl" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >MEXC API Key</label
+          >
+          <input
+            [disabled]="true"
+            pInputText
+            type="password"
+            [(ngModel)]="envConfig.api_key"
+            placeholder="Masukkan API Key..."
+            class="w-full rounded-xl"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">MEXC Secret Key</label>
-          <input [disabled]="true" pInputText type="password" [(ngModel)]="envConfig.secret_key" placeholder="Masukkan Secret Key..." class="w-full rounded-xl" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >MEXC Secret Key</label
+          >
+          <input
+            [disabled]="true"
+            pInputText
+            type="password"
+            [(ngModel)]="envConfig.secret_key"
+            placeholder="Masukkan Secret Key..."
+            class="w-full rounded-xl"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Telegram Bot Token</label>
-          <input [disabled]="true" pInputText type="password" [(ngModel)]="envConfig.tele_token" placeholder="123456789:ABCdef..." class="w-full rounded-xl" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Telegram Bot Token</label
+          >
+          <input
+            [disabled]="true"
+            pInputText
+            type="password"
+            [(ngModel)]="envConfig.tele_token"
+            placeholder="123456789:ABCdef..."
+            class="w-full rounded-xl"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Telegram Chat ID</label>
-          <input [disabled]="true" pInputText type="text" [(ngModel)]="envConfig.tele_chat_id" placeholder="Misal: 987654321" class="w-full rounded-xl" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Telegram Chat ID</label
+          >
+          <input
+            [disabled]="true"
+            pInputText
+            type="text"
+            [(ngModel)]="envConfig.tele_chat_id"
+            placeholder="Misal: 987654321"
+            class="w-full rounded-xl"
+          />
         </div>
       </div>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300"
+    >
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+        <div
+          class="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400"
+        >
           <i class="pi pi-sliders-h text-xl"></i>
         </div>
-        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Trading Umum</h3>
+        <h3 class="text-xl font-bold text-slate-800 dark:text-white">
+          Trading Umum
+        </h3>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Pasangan Koin</label>
-          <p-select [options]="coinOptions" [(ngModel)]="generalConfig.symbol" optionLabel="label" optionValue="value" styleClass="w-full rounded-xl" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Pasangan Koin</label
+          >
+          <input
+            pInputText
+            type="text"
+            [(ngModel)]="generalConfig.symbol"
+            placeholder="Misal: BTCUSDT"
+            class="w-full rounded-xl uppercase font-bold text-slate-700 dark:text-slate-200"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Modal per Transaksi (USDT)</label>
-          <p-inputNumber [(ngModel)]="generalConfig.usdt_amount" mode="currency" currency="USD" locale="en-US" styleClass="w-full" [inputStyle]="{ 'border-radius': '0.75rem', width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Modal Statis (USDT)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="generalConfig.usdt_amount"
+            mode="currency"
+            currency="USD"
+            locale="en-US"
+            styleClass="w-full"
+            [inputStyle]="{ 'border-radius': '0.75rem', width: '100%' }"
+          />
         </div>
 
-        <div class="flex flex-col gap-2 md:col-span-2 mt-2 pt-6 border-t border-slate-100 dark:border-slate-800/50">
+        <div class="flex flex-col gap-2">
+          <div
+            class="flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800/50 h-full"
+          >
+            <div>
+              <span
+                class="text-sm font-bold text-indigo-700 dark:text-indigo-400"
+                >Gunakan Compounding</span
+              >
+              <p class="text-xs text-indigo-500 dark:text-indigo-300">
+                Otomatis hitung modal dari persentase saldo
+              </p>
+            </div>
+            <p-toggleSwitch [(ngModel)]="generalConfig.use_compounding" />
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Risiko Saldo per Trade (%)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="generalConfig.risk_percentage"
+            [minFractionDigits]="1"
+            [step]="0.5"
+            [showButtons]="true"
+            [min]="1"
+            [max]="100"
+            [inputStyle]="{ width: '100%', 'border-radius': '0.75rem' }"
+            [disabled]="!generalConfig.use_compounding"
+          />
+        </div>
+
+        <div
+          class="flex flex-col gap-2 md:col-span-2 mt-2 pt-6 border-t border-slate-100 dark:border-slate-800/50"
+        >
           <div class="flex items-center justify-between">
             <div>
-              <label class="text-base font-bold text-slate-800 dark:text-white">Mode Simulasi (Dry Run)</label>
-              <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">Gunakan saldo virtual. Jangan matikan kecuali siap trading dengan uang asli.</p>
+              <label class="text-base font-bold text-slate-800 dark:text-white"
+                >Mode Simulasi (Dry Run)</label
+              >
+              <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">
+                Gunakan saldo virtual. Jangan matikan kecuali siap trading
+                dengan uang asli.
+              </p>
             </div>
             <p-toggleSwitch [(ngModel)]="generalConfig.dry_run" />
           </div>
@@ -83,135 +203,418 @@
       </div>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300"
+    >
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+        <div
+          class="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400"
+        >
           <i class="pi pi-chart-line text-xl"></i>
         </div>
-        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Strategi TREND</h3>
+        <h3 class="text-xl font-bold text-slate-800 dark:text-white">
+          Strategi TREND
+        </h3>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Timeframe (Interval)</label>
-          <p-select [options]="intervalOptions" [(ngModel)]="trendConfig.interval" optionLabel="label" optionValue="value" styleClass="w-full" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Volume Multiplier</label>
-          <p-inputNumber [(ngModel)]="trendConfig.vol_mult" [minFractionDigits]="1" [step]="0.1" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">RSI Minimum</label>
-          <p-inputNumber [(ngModel)]="trendConfig.rsi_min" [showButtons]="true" [min]="1" [max]="100" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">RSI Maximum</label>
-          <p-inputNumber [(ngModel)]="trendConfig.rsi_max" [showButtons]="true" [min]="1" [max]="100" [inputStyle]="{ width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Timeframe Mikro</label
+          >
+          <p-select
+            [options]="intervalOptions"
+            [(ngModel)]="trendConfig.interval"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Take Profit (Raw Decimal)</label>
-          <p-inputNumber [(ngModel)]="trendConfig.tp_percent" [minFractionDigits]="2" [step]="0.01" [inputStyle]="{ width: '100%', 'border-radius': '0.5rem' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Stop Loss (ATR Mult)</label>
-          <p-inputNumber [(ngModel)]="trendConfig.sl_atr_mult" [minFractionDigits]="1" [step]="0.1" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Trail Start</label>
-          <p-inputNumber [(ngModel)]="trendConfig.trail_start" [minFractionDigits]="2" [maxFractionDigits]="3" [step]="0.005" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Trail Distance</label>
-          <p-inputNumber [(ngModel)]="trendConfig.trail_dist" [minFractionDigits]="2" [maxFractionDigits]="3" [step]="0.005" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Timeframe Makro (MTF)</label
+          >
+          <p-select
+            [options]="intervalOptions"
+            [(ngModel)]="trendConfig.macro_interval"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+            [disabled]="!trendConfig.use_mtf"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Delay Scan (Detik)</label>
-          <p-inputNumber [(ngModel)]="trendConfig.delay_scan" [showButtons]="true" [min]="1" [inputStyle]="{ width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Volume Multiplier</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.vol_mult"
+            [minFractionDigits]="1"
+            [step]="0.1"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Delay Scan (Detik)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.delay_scan"
+            [showButtons]="true"
+            [min]="1"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >RSI Minimum</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.rsi_min"
+            [showButtons]="true"
+            [min]="1"
+            [max]="100"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >RSI Maximum</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.rsi_max"
+            [showButtons]="true"
+            [min]="1"
+            [max]="100"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Take Profit (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.tp_percent"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [inputStyle]="{ width: '100%', 'border-radius': '0.5rem' }"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Stop Loss (ATR Mult)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.sl_atr_mult"
+            [minFractionDigits]="1"
+            [step]="0.1"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Break-Even Start (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.breakeven_start"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Trail Start (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.trail_start"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Trail Distance (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="trendConfig.trail_dist"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
         </div>
 
         <div class="hidden lg:block"></div>
 
         <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full">
-            <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Gunakan EMA 200</span>
+          <div
+            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full"
+          >
+            <span
+              class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >Gunakan Filter MTF</span
+            >
+            <p-toggleSwitch [(ngModel)]="trendConfig.use_mtf" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <div
+            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full"
+          >
+            <span
+              class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >Gunakan EMA 200</span
+            >
             <p-toggleSwitch [(ngModel)]="trendConfig.use_ema_200" />
           </div>
         </div>
         <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full">
-            <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Use Hard TP</span>
+          <div
+            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full"
+          >
+            <span
+              class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >Use Hard TP</span
+            >
             <p-toggleSwitch [(ngModel)]="trendConfig.use_hard_tp" />
           </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300">
+    <div
+      class="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm dark:shadow-none transition-colors duration-300"
+    >
       <div class="flex items-center gap-3 mb-6">
-        <div class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400">
+        <div
+          class="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400"
+        >
           <i class="pi pi-bolt text-xl"></i>
         </div>
-        <h3 class="text-xl font-bold text-slate-800 dark:text-white">Strategi SCALP</h3>
+        <h3 class="text-xl font-bold text-slate-800 dark:text-white">
+          Strategi SCALP
+        </h3>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Timeframe (Interval)</label>
-          <p-select [options]="intervalOptions" [(ngModel)]="scalpConfig.interval" optionLabel="label" optionValue="value" styleClass="w-full" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Volume Multiplier</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.vol_mult" [minFractionDigits]="1" [step]="0.1" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">RSI Minimum</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.rsi_min" [showButtons]="true" [min]="1" [max]="100" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">RSI Maximum</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.rsi_max" [showButtons]="true" [min]="1" [max]="100" [inputStyle]="{ width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Timeframe Mikro</label
+          >
+          <p-select
+            [options]="intervalOptions"
+            [(ngModel)]="scalpConfig.interval"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Take Profit (Raw Decimal)</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.tp_percent" [minFractionDigits]="2" [step]="0.01" [inputStyle]="{ width: '100%', 'border-radius': '0.5rem' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Stop Loss (ATR Mult)</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.sl_atr_mult" [minFractionDigits]="1" [step]="0.1" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Trail Start</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.trail_start" [minFractionDigits]="2" [maxFractionDigits]="3" [step]="0.005" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Trail Distance</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.trail_dist" [minFractionDigits]="2" [maxFractionDigits]="3" [step]="0.005" [showButtons]="true" [inputStyle]="{ width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Timeframe Makro (MTF)</label
+          >
+          <p-select
+            [options]="intervalOptions"
+            [(ngModel)]="scalpConfig.macro_interval"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+            [disabled]="!scalpConfig.use_mtf"
+          />
         </div>
 
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-slate-600 dark:text-slate-400">Delay Scan (Detik)</label>
-          <p-inputNumber [(ngModel)]="scalpConfig.delay_scan" [showButtons]="true" [min]="1" [inputStyle]="{ width: '100%' }" />
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Volume Multiplier</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.vol_mult"
+            [minFractionDigits]="1"
+            [step]="0.1"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Delay Scan (Detik)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.delay_scan"
+            [showButtons]="true"
+            [min]="1"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >RSI Minimum</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.rsi_min"
+            [showButtons]="true"
+            [min]="1"
+            [max]="100"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >RSI Maximum</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.rsi_max"
+            [showButtons]="true"
+            [min]="1"
+            [max]="100"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Take Profit (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.tp_percent"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [inputStyle]="{ width: '100%', 'border-radius': '0.5rem' }"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Stop Loss (ATR Mult)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.sl_atr_mult"
+            [minFractionDigits]="1"
+            [step]="0.1"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Break-Even Start (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.breakeven_start"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Trail Start (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.trail_start"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="text-sm font-semibold text-slate-600 dark:text-slate-400"
+            >Trail Distance (Raw)</label
+          >
+          <p-inputNumber
+            [(ngModel)]="scalpConfig.trail_dist"
+            [minFractionDigits]="2"
+            [maxFractionDigits]="3"
+            [step]="0.005"
+            [showButtons]="true"
+            [inputStyle]="{ width: '100%' }"
+          />
         </div>
 
         <div class="hidden lg:block"></div>
 
         <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full">
-            <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Gunakan EMA 200</span>
+          <div
+            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full"
+          >
+            <span
+              class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >Gunakan Filter MTF</span
+            >
+            <p-toggleSwitch [(ngModel)]="scalpConfig.use_mtf" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <div
+            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full"
+          >
+            <span
+              class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >Gunakan EMA 200</span
+            >
             <p-toggleSwitch [(ngModel)]="scalpConfig.use_ema_200" />
           </div>
         </div>
         <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full">
-            <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">Use Hard TP</span>
+          <div
+            class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800 h-full"
+          >
+            <span
+              class="text-sm font-semibold text-slate-700 dark:text-slate-300"
+              >Use Hard TP</span
+            >
             <p-toggleSwitch [(ngModel)]="scalpConfig.use_hard_tp" />
           </div>
         </div>
       </div>
     </div>
-
   </div>
 </div>

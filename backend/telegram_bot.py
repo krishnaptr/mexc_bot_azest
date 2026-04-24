@@ -2,6 +2,7 @@ import time
 import requests
 import logging
 import threading
+import json
 from urllib.parse import urlencode
 
 # Import modul buatan kita
@@ -111,9 +112,21 @@ def handle_command(bot_engine_module, msg_text: str):
             try:
                 cek_koin = requests.get(f"{config.BASE_URL}/api/v3/ticker/price", params={'symbol': new_symbol}).json()
                 if 'price' in cek_koin: 
-                    config.SYMBOL = new_symbol 
-                    send_message(f"✅ Target diubah ke `{config.SYMBOL}` (${cek_koin['price']})")
-                    bot_engine_module.trigger_scan.set()
+                    try:
+                        with open("settings.json", "r") as f:
+                            settings_data = json.load(f)
+                        
+                        settings_data["general"]["symbol"] = new_symbol
+                        
+                        with open("settings.json", "w") as f:
+                            json.dump(settings_data, f, indent=4)
+                            
+                        config.SYMBOL = new_symbol 
+                        send_message(f"✅ Target permanen diubah ke `{config.SYMBOL}` (${cek_koin['price']})")
+                        bot_engine_module.trigger_scan.set()
+                        
+                    except Exception as e:
+                        send_message(f"❌ Gagal menyimpan ke settings.json: {e}")
                 else: 
                     send_message(f"❌ Koin `{new_symbol}` *TIDAK DITEMUKAN*")
             except: 

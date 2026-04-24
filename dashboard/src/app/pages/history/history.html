@@ -28,7 +28,7 @@
   </div>
 
   <div
-    class="bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors duration-300"
+    class="bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors duration-300 min-h-[650px]"
   >
     <p-table
       #dt
@@ -95,23 +95,32 @@
             />
           </td>
           <td class="dark:border-slate-800/50 text-right">
-            <span
-              class="font-bold tracking-tight"
-              [ngClass]="
-                trade.net_pnl > 0 ? 'text-emerald-500' : 'text-rose-500'
-              "
-            >
-              {{ trade.net_pnl > 0 ? "+" : "" }}{{ trade.net_pnl }}
-            </span>
+            @if (trade.side === "SELL") {
+              <span
+                class="font-bold tracking-tight"
+                [ngClass]="
+                  trade.net_pnl > 0 ? 'text-emerald-500' : 'text-rose-500'
+                "
+              >
+                {{ trade.net_pnl > 0 ? "+" : ""
+                }}{{ trade.net_pnl * 100 | number: "1.2-2" }}%
+              </span>
+            } @else {
+              <span class="text-slate-400 font-medium">-</span>
+            }
           </td>
           <td class="dark:border-slate-800/50 text-center">
-            <p-button
-              icon="pi pi-external-link"
-              [text]="true"
-              [rounded]="true"
-              size="small"
-              severity="secondary"
-            />
+            <a
+              [href]="
+                'https://www.mexc.com/exchange/' +
+                trade.symbol.replace('USDT', '_USDT')
+              "
+              target="_blank"
+              class="p-button p-button-secondary p-button-text p-button-rounded p-button-sm flex items-center justify-center w-8 h-8 mx-auto hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Lihat Chart di MEXC"
+            >
+              <i class="pi pi-external-link"></i>
+            </a>
           </td>
         </tr>
       </ng-template>

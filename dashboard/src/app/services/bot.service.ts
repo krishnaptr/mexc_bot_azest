@@ -26,7 +26,9 @@ export class BotService {
   tradeHistory = signal<TradeRecord[]>([]);
   systemLogs = signal<string[]>([]);
   chartData = signal<any>(null);
-
+  settings = signal<any>(null);
+  hasActivePosition = signal<boolean>(false);
+  activePosition = signal<any>(null);
   private pollingSub?: Subscription;
 
   startPolling(intervalSeconds: number = 5) {
@@ -38,6 +40,7 @@ export class BotService {
           this.fetchTradeHistory();
           this.fetchEquityCurve();
           this.fetchLogs();
+          this.fetchSettingsSignal();
         }),
       )
       .subscribe();
@@ -53,6 +56,19 @@ export class BotService {
   // FUNGSI HTTP
   // ==========================================
 
+  fetchSettingsSignal() {
+    this.http
+      .get<{ status: string; data: any }>(`${this.apiUrl}/settings`)
+      .subscribe({
+        next: (res) => {
+          if (res.status === 'success') {
+            this.settings.set(res.data);
+          }
+        },
+        error: () => console.error('Gagal mengambil settings untuk chart'),
+      });
+  }
+
   fetchDashboardStats() {
     this.http.get<BotStats>(`${this.apiUrl}/stats`).subscribe({
       next: (response) => {
@@ -61,13 +77,27 @@ export class BotService {
         this.winRate.set(response.win_rate);
         this.totalTrades.set(response.total_trades);
         this.isBotActive.set(response.is_active);
-        this.isDryRun.set(response.dry_run)
+        this.isDryRun.set(response.dry_run);
+
+        this.hasActivePosition.set(response.active_trade);
+        if (response.active_trade && response.position) {
+          this.activePosition.set(response.position);
+        } else {
+          this.activePosition.set(null);
+        }
       },
       error: () => {
         this.isServerOnline.set(false);
         this.isBotActive.set(false);
       },
     });
+  }
+
+  panicSell() {
+    return this.http.post<{ status: string; message: string }>(
+      `${this.apiUrl}/bot/panic`,
+      {},
+    );
   }
 
   fetchTradeHistory() {

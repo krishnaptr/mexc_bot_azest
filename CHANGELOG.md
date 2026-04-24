@@ -1,6 +1,18 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [2.3.0] - 2026-04-24
+### Added
+- **TradingView Widget Integration**: Mengintegrasikan grafik *candlestick* interaktif secara *real-time* dari bursa MEXC langsung ke halaman utama Dashboard menggunakan komponen mandiri Angular (`<app-trading-chart>`). Grafik otomatis menyesuaikan diri dengan koin yang sedang dilacak (`symbol`) dan tema antarmuka (*Dark/Light Mode*).
+- **Active Position & Panic Sell Card**: Menambahkan kartu pemantauan UI darurat yang secara eksklusif muncul hanya ketika bot sedang menahan koin (*Holding*). Kartu ini menampilkan info harga masuk, harga saat ini, PNL *floating* raksasa, indikator jarak SL/TP, serta tombol "PANIC SELL".
+- **Visual Equity Curve**: Mengubah data tabel *History* menjadi representasi visual (*Line Chart*) menggunakan PrimeNG Chart. Memungkinkan pemantauan kinerja kumulatif PNL bot dan *Drawdown* (*Smooth Line Tension*) secara estetis di halaman depan.
+- **Cross-Process Communication (Flag System)**: Mengimplementasikan sistem jalur aman anti-tabrakan untuk fitur *Panic Sell* via Web. `api_server.py` kini membuat *file* bendera kosong (`state.json.panic`) sebagai sinyal darurat, dan `main.py` akan memindai *file* ini untuk merespons pelatuk jual secara instan (menghilangkan isu *Race Condition*).
+
+### Fixed
+- **UI PNL Value Rendering**: Memperbaiki masalah nilai persentase PNL "bahasa mesin" (*long floating decimal*) yang tidak terbaca di UI tabel dengan menerapkan *Angular Pipe* matematika (`| number:'1.2-2'`) dan merapikan desimal `tp_price`.
+- **Zero Stop Loss Bug (Force Buy)**: Menambahkan perbaikan lapisan ganda saat terjadi *Force Buy*. `main.py` kini wajib memanggil `update_and_save_state()` tepat setelah perhitungan awal nilai SL, dan `api_server.py` otomatis menghitung cadangan 1% jika API secara tak terduga membaca nilai `0.0`.
+- **Missing API Settings Signal**: Menyelesaikan *error* kompilasi Angular di Dashboard UI karena Signal `.settings()` tidak terinisialisasi. Menambahkan *polling loop* khusus di `bot.service.ts` agar Dashboard selalu tahu target koin apa yang harus di-*render*.
+
 ## [2.2.0] - 2026-04-22
 ### Added
 - **Dynamic Position Sizing (Compounding)**: Menambahkan fitur "Efek Bola Salju". Bot kini dapat diatur untuk meresikokan persentase spesifik dari total saldo (misal: 5%) alih-alih jumlah USDT statis. Memungkinkan ekskalasi profit eksponensial seiring bertumbuhnya modal, sekaligus memberikan proteksi saat terjadi *drawdown*.
@@ -47,7 +59,7 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 ### Fixed
 - **Optimistic UI Toggle Failure**: Memperbaiki masalah di mana tombol Dashboard terlihat aktif padahal mesin mati. Kini UI akan otomatis kembali ke posisi *Off* jika aktivasi gagal.
 - **Config Attribute Error (`BASE_URL` & `TELE_TOKEN`)**: Memperbaiki *crash* sistem saat *startup* akibat variabel lingkungan yang belum terinisialisasi dengan benar pada arsitektur baru.
-- **Auto-Wake State on Manual Run**: Memastikan status bot di Dashboard otomatis berubah menjadi hijau (Aktif) segera setelah pengguna menjalankan `python main.py` di terminal.
+- **Auto-Wake State on Manual Run**: Memastikan status bot di Dashboard
 
 ## [1.6.0] - 2026-04-14
 ### Added

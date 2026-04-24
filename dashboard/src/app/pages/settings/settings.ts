@@ -31,11 +31,14 @@ private botService = inject(BotService);
   isSaving = false;
   envConfig: any = {};
   generalConfig: any = {};
-intervalOptions = [
+  intervalOptions = [
     { label: '1 Menit', value: '1m' },
     { label: '5 Menit', value: '5m' },
     { label: '15 Menit', value: '15m' },
-    { label: '1 Jam', value: '1h' }
+    { label: '30 Menit', value: '30m' },
+    { label: '1 Jam', value: '1h' },
+    { label: '4 Jam', value: '4h' },
+    { label: '1 Hari', value: '1d' }
   ];
 
   trendConfig: any = {
@@ -49,12 +52,6 @@ intervalOptions = [
     use_ema_200: true, tp_percent: 0.02, sl_atr_mult: 2.5,
     trail_start: 0.015, trail_dist: 0.008, delay_scan: 10, use_hard_tp: true
   };
-
-  coinOptions = [
-    { label: 'BTC/USDT', value: 'BTCUSDT' },
-    { label: 'ETH/USDT', value: 'ETHUSDT' },
-    { label: 'SOL/USDT', value: 'SOLUSDT' }
-  ];
 
   ngOnInit() {
     this.loadSettings();

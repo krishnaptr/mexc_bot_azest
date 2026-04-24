@@ -31,9 +31,13 @@ DEFAULT_SETTINGS = {
     "env": {
         "api_key": "", "secret_key": "", "tele_token": "", "tele_chat_id": ""
     },
-    "general": {
-        "symbol": "BTCUSDT", "usdt_amount": 50.0, "dry_run": True
-    },
+        "general": {
+            "symbol": "BTCUSDT",
+            "usdt_amount": 50.0,
+            "use_compounding": True,
+            "risk_percentage": 5.0,
+            "dry_run": True
+        },
 "trend": {
             "interval": "15m", 
             "rsi_min": 40,             # Naikkan sedikit. Koin uptrend jarang turun sampai 25.
@@ -127,8 +131,6 @@ async def update_settings(request: Request):
     try:
         new_settings = await request.json()
         write_settings(new_settings)
-        # Catatan: Di bot sungguhan, Anda mungkin perlu memanggil fungsi 
-        # reload_config() di sini agar bot langsung memakai setting baru.
         return {"status": "success", "message": "Konfigurasi berhasil disimpan"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -225,18 +227,73 @@ def get_bot_stats():
         
         # 3. PERHITUNGAN SALDO (EQUITY)
         if is_dry_run:
-            # Jika simulasi, gunakan modal virtual statis
-            MODAL_AWAL_SIMULASI = 1000.0
-            equity = MODAL_AWAL_SIMULASI + sum_pnl
+            import database
+            
+            usdt_sim = database.load_sim_balance()
+            if state.get("active_trade", False):
+                try:
+                    entry_p = state.get("entry_price", 0.0)
+                    ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': settings.get("general", {}).get("symbol", "BTCUSDT")}, timeout=5).json()
+                    curr_p = float(ticker['bidPrice'])
+                    if sl_p == 0.0 and entry_p > 0:
+                        sl_p = entry_p * 0.99
+                    # Asumsi jumlah koin yang dibeli = Modal per trade / Harga Beli
+                    usdt_per_trade = settings.get("general", {}).get("usdt_amount", 50.0)
+                    jumlah_koin = usdt_per_trade / entry_p
+                    nilai_koin_sekarang = jumlah_koin * curr_p
+                    
+                    equity = usdt_sim + nilai_koin_sekarang
+                except:
+                    equity = usdt_sim # Fallback jika gagal tarik harga
+            else:
+                equity = usdt_sim
+                
         else:
             # Jika Uang Asli, tembak API MEXC untuk melihat sisa USDT aktual di dompet
             equity = get_real_usdt_balance(api_key, secret_key)
+
+        pos_data = None
+        if state.get("active_trade", False):
+            import config
+            import requests
             
+            entry_p = state.get("entry_price", 0.0)
+            sl_p = state.get("stop_loss", 0.0)
+            symbol = settings.get("general", {}).get("symbol", "BTCUSDT")
+
+            if sl_p == 0.0 and entry_p > 0:
+                sl_p = entry_p * 0.99
+            
+            try:
+                # Ambil harga live langsung dari MEXC Orderbook
+                ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': symbol}, timeout=5).json()
+                curr_p = float(ticker['bidPrice'])
+                
+                # Hitung PNL persis seperti rumus monitor_position di main.py
+                pnl_gross = (curr_p - entry_p) / entry_p
+                pnl_net = pnl_gross - config.EXCHANGE_FEE
+                
+                # Hitung estimasi Target TP (Mengambil dari setting TREND)
+                tp_pct = settings.get("trend", {}).get("tp_percent", 0.025)
+                tp_price = entry_p * (1 + tp_pct)
+                
+            except Exception:
+                curr_p, pnl_net, tp_price = 0.0, 0.0, 0.0
+                
+            pos_data = {
+                "symbol": symbol,
+                "entry_price": entry_p,
+                "current_price": curr_p,
+                "pnl": pnl_net,
+                "sl_price": sl_p,
+                "tp_price": tp_price
+            }
         return {
             "status": "success",
             "is_active": is_active_intent and is_engine_alive,
             "engine_status": "ONLINE" if is_engine_alive else "OFFLINE",
             "active_trade": state.get("active_trade", False),
+            "position": pos_data,
             "total_trades": total_trades,
             "win_rate": round(win_rate, 2),
             "equity": round(equity, 2),
@@ -246,6 +303,23 @@ def get_bot_stats():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.post("/api/bot/panic")
+async def trigger_panic():
+    """Mengirim sinyal radio darurat ke main.py lewat state.json"""
+    try:
+        import database
+        state = database.load_state()
+        
+        if not state.get("active_trade", False):
+            return {"status": "error", "message": "Tidak ada posisi aktif yang bisa dijual."}
+            
+        state["trigger_panic"] = True
+        database.save_state(state)
+        
+        return {"status": "success", "message": "Sinyal PANIC SELL berhasil dikirim ke Mesin Trading!"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    
 @app.post("/api/bot/toggle")
 async def toggle_bot(request: Request):
     """Endpoint untuk mengubah status bot (Aktif/Jeda) dari UI."""
@@ -295,30 +369,45 @@ def get_trade_history():
 
 @app.get("/api/equity")
 def get_equity_curve():
-    """Endpoint untuk Grafik Garis PNL di Angular."""
+    """Mengirim data untuk menggambar grafik garis (Equity Curve) di Web"""
     try:
+        import sqlite3
+        
+        settings = read_settings()
+        is_dry_run = settings.get("general", {}).get("dry_run", True)
+        mode_filter = "SIMULASI" if is_dry_run else "LIVE"
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         
-        # Ambil waktu dan PNL dari setiap penjualan (dari terlama ke terbaru)
-        cursor.execute("SELECT timestamp, net_pnl FROM trades WHERE side='SELL' ORDER BY id ASC")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        labels = []
-        data_points = []
-        cumulative_pnl = 0.0
-        
-        for row in rows:
-            # Format waktu agar lebih rapi di chart (misal: "14 Apr, 16:30")
-            labels.append(row[0]) 
-            cumulative_pnl += (row[1] * 100) # Ubah ke bentuk persen (misal: 0.005 -> 0.5%)
-            data_points.append(round(cumulative_pnl, 2))
+        # Ambil semua transaksi JUAL yang sudah selesai
+        try:
+            cursor.execute("SELECT timestamp, net_pnl FROM trades WHERE side='SELL' AND mode=? ORDER BY id ASC", (mode_filter,))
+        except:
+            cursor.execute("SELECT timestamp, net_pnl FROM trades WHERE side='SELL' ORDER BY id ASC")
             
+        trades = cursor.fetchall()
+        conn.close()
+
+        labels = ["Start"]
+        cumulative_pnl = [0.0]
+        current_sum = 0.0
+        
+        for t in trades:
+            time_str = t[0] 
+            pnl_decimal = t[1] or 0.0
+            
+            try: short_time = time_str.split(" ")[1][:5] # Ambil Jam:Menit
+            except: short_time = time_str
+                
+            current_sum += (pnl_decimal * 100)
+            labels.append(short_time)
+            cumulative_pnl.append(round(current_sum, 2))
+
         return {
             "status": "success",
             "labels": labels,
-            "cumulative_pnl": data_points
+            "cumulative_pnl": cumulative_pnl
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}

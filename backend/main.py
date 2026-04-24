@@ -81,14 +81,59 @@ def update_and_save_state():
 
 def sync_dashboard_data():
     """Mengambil setting terbaru dari JSON dan menimpanya ke memori bot."""
-    global bot_active, last_known_status
+    global bot_active, last_known_status, active_trade, entry_price, stop_loss, highest_p
     
-    # A. Update Parameter Setting
+    try:
+        with open(config.STATE_FILE, "r") as f:
+            state_data = json.load(f)
+            
+        if state_data.get("trigger_panic", False):
+            logging.info("🚨 Sinyal PANIC SELL dari Web Dashboard diterima di main.py!")
+            telegram_bot.send_message("🚨 *PANIC BUTTON WEB TRIGGERED!* 🚨\nMenutup posisi secara paksa...")
+            
+            try: 
+                curr_p = float(requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}).json()['bidPrice'])
+            except: 
+                curr_p = None
+                
+            # Eksekusi Jual Darurat
+            execute_trade('SELL', config.USDT_AMOUNT, forced_price=curr_p)
+            
+            # Reset memori bot
+            active_trade = False
+            entry_price = 0.0
+            stop_loss = 0.0
+            highest_p = 0.0
+            
+            # Matikan panic di JSON
+            state_data["trigger_panic"] = False
+            state_data["active_trade"] = False
+            with open(config.STATE_FILE, "w") as fw:
+                json.dump(state_data, fw)
+                
+            logging.info("✅ Posisi berhasil ditutup via Web.")
+
+        # 2. UPDATE STATUS AKTIF/JEDA
+        new_status = state_data.get("is_active", True)
+        if new_status != last_known_status:
+            if new_status:
+                telegram_bot.send_message("✅ *Dashboard Alert*: Bot dijalankan kembali 🟢")
+            else:
+                telegram_bot.send_message("🛑 *Dashboard Alert*: Bot telah dijeda ⏸️")
+            last_known_status = new_status
+        bot_active = new_status
+
+        state_data["last_heartbeat"] = time.time()
+        with open(config.STATE_FILE, "w") as fw:
+            json.dump(state_data, fw)
+            
+    except Exception:
+        pass 
+
+    # 4. UPDATE PARAMETER SETTING
     latest_cfg = config.get_settings()
-    
     config.API_KEY = latest_cfg['env'].get('api_key', '')
     config.SECRET_KEY = latest_cfg['env'].get('secret_key', '')
-
     config.TELE_TOKEN = latest_cfg['env'].get('tele_token', '')
     config.TELE_CHAT_ID = latest_cfg['env'].get('tele_chat_id', '')
     
@@ -101,27 +146,6 @@ def sync_dashboard_data():
         "TREND": latest_cfg['trend'],
         "SCALP": latest_cfg['scalp']
     }
-    
-    try:
-        with open(config.STATE_FILE, "r") as f:
-            state_data = json.load(f)
-            new_status = state_data.get("is_active", True)
-            
-            # Jika status berubah dari Web, kirim Notif Telegram
-            if new_status != last_known_status:
-                if new_status:
-                    telegram_bot.send_message("✅ *Dashboard Alert*: Bot dijalankan kembali 🟢")
-                else:
-                    telegram_bot.send_message("🛑 *Dashboard Alert*: Bot telah dijeda ⏸️")
-                last_known_status = new_status
-            
-            bot_active = new_status
-            
-        state_data["last_heartbeat"] = time.time()
-        with open(config.STATE_FILE, "w") as f:
-            json.dump(state_data, f)
-    except Exception:
-        pass
 
 # --- FUNGSI UTILS & PRESISI ---
 def check_spread(symbol, max_spread_percent=2.0):
@@ -218,12 +242,28 @@ def fetch_data(symbol: str, interval: str) -> Optional[pd.DataFrame]:
         df['ema_200'] = ta.ema(df['close'], length=200)
         df['ema_50'] = ta.ema(df['close'], length=50)
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
+        
+        # (AUTO-REGIME)
+        atr_sma = ta.sma(df['atr'], length=100)
+        if atr_sma is not None and not atr_sma.empty:
+            df['atr_sma'] = atr_sma
+            df['vol_ratio'] = df['atr'] / df['atr_sma']
+        else:
+            # Fallback jika data kurang dari 100 candle
+            df['atr_sma'] = df['atr'] 
+            df['vol_ratio'] = 1.0
+            
         df['vol_sma'] = ta.sma(df['volume'], length=20)
 
         # ---INDIKATOR KEKUATAN TREN (ADX) ---
         adx = ta.adx(df['high'], df['low'], df['close'], length=14)
-        df['adx'] = adx['ADX_14']
         
+        # Pastikan ADX tidak kosong sebelum diambil
+        if adx is not None and not adx.empty:
+            df['adx'] = adx['ADX_14']
+        else:
+            df['adx'] = 0.0 # Beri nilai 0 jika koin masih terlalu baru
+            
         # Hitung VWAP (Volume Weighted Average Price)
         tp = (df['high'] + df['low'] + df['close']) / 3
         df['vwap'] = (tp * df['volume']).cumsum() / df['volume'].cumsum()
@@ -245,7 +285,7 @@ def get_balance():
 
 # --- CHECK BUY SIGNAL (MTF) ---
 def check_buy_signal(df: pd.DataFrame, conf: dict):
-    if df is None or df.empty: return False, 0.0
+    if df is None or df.empty or len(df) < 3: return False, 0.0
 
     last, prev = df.iloc[-2], df.iloc[-3]
     try:
@@ -253,13 +293,32 @@ def check_buy_signal(df: pd.DataFrame, conf: dict):
         curr_price = float(ticker['askPrice'])
     except: return False, 0.0
         
-    curr_rsi, curr_adx = last['rsi'], last['adx']
-    rsi_moving_up = curr_rsi > prev['rsi'] 
-    found_hammer = is_hammer(last)         
-    volume_breakout = last['volume'] > (last['vol_sma'] * conf.get("vol_mult", 1.1))
+    curr_rsi = last.get('rsi')
+    prev_rsi = prev.get('rsi')
+    curr_adx = last.get('adx')
     
-    is_trending_market = True if STRATEGY_MODE == "SCALP" else prev['adx'] > 25.0
-    is_micro_uptrend = curr_price > last['ema_200'] if conf.get("use_ema_200", True) else True
+    # Pastikan RSI dan ADX tidak kosong
+    if pd.isna(curr_rsi) or pd.isna(prev_rsi) or pd.isna(curr_adx):
+        return False, curr_price
+        
+    rsi_moving_up = curr_rsi > prev_rsi 
+    found_hammer = is_hammer(last)         
+    
+    # Fallback untuk Volume SMA
+    vol_sma_val = last.get('vol_sma')
+    if pd.isna(vol_sma_val): vol_sma_val = last['volume'] 
+    volume_breakout = last['volume'] > (vol_sma_val * conf.get("vol_mult", 1.1))
+    
+    # Logika Trend vs Reversion (Abaikan ADX jika mode Scalp)
+    is_trending_market = True if STRATEGY_MODE == "SCALP" else (curr_adx > 25.0)
+    
+    # Bypass EMA 200 jika koin terlalu baru
+    ema_200_val = last.get('ema_200')
+    if conf.get("use_ema_200", True) and not pd.isna(ema_200_val):
+        is_micro_uptrend = curr_price > ema_200_val
+    else:
+        is_micro_uptrend = True # Anggap uptrend jika koin masih baru
+        
     rsi_healthy = (conf.get("rsi_min", 30) < curr_rsi < conf.get("rsi_max", 75))
 
     # LOGIKA MULTI-TIMEFRAME (MTF) FILTER
@@ -267,10 +326,14 @@ def check_buy_signal(df: pd.DataFrame, conf: dict):
     if conf.get('use_mtf', True):
         macro_tf = conf.get('macro_interval', '4h')
         df_macro = fetch_data(config.SYMBOL, macro_tf)
-        if df_macro is not None and not df_macro.empty:
-            if curr_price < df_macro.iloc[-2]['ema_200']:
-                is_macro_uptrend = False
-                logging.info(f"🚫 Sinyal Mikro valid, TAPI dibatalkan! Tren Makro ({macro_tf}) sedang Bearish.")
+        if df_macro is not None and not df_macro.empty and len(df_macro) > 2:
+            macro_ema = df_macro.iloc[-2].get('ema_200')
+            
+            # Bypass Macro EMA 200 jika koin terlalu baru
+            if not pd.isna(macro_ema):
+                if curr_price < macro_ema:
+                    is_macro_uptrend = False
+                    logging.info(f"🚫 Sinyal Mikro valid, TAPI dibatalkan! Tren Makro ({macro_tf}) sedang Bearish.")
 
     logging.info(f"🔍 [{STRATEGY_MODE}] Scan {config.SYMBOL} | Price: {curr_price} | RSI: {curr_rsi:.2f} | RSI_UP: {rsi_moving_up} | Hammer: {found_hammer}")
 
@@ -422,7 +485,7 @@ def monitor_position():
     if stop_loss == 0:
         stop_loss = entry_price * 0.99 
         highest_p = entry_price
-
+        update_and_save_state()
     try:
         ticker = requests.get(f"{config.BASE_URL}/api/v3/ticker/bookTicker", params={'symbol': config.SYMBOL}, timeout=5).json()
         curr_p = float(ticker['bidPrice'])
@@ -430,8 +493,11 @@ def monitor_position():
         if curr_p > highest_p: highest_p = curr_p
         pnl_gross = (curr_p - entry_price) / entry_price
         pnl_net = pnl_gross - config.EXCHANGE_FEE
+        
+        sl_pct = ((stop_loss - entry_price) / entry_price) * 100
+        tp_pct = ((tp_price - entry_price) / entry_price) * 100
 
-        logging.info(f"[{STRATEGY_MODE}] {config.SYMBOL} | Price: {curr_p} | Net PNL: {pnl_net*100:.2f}% | SL: {stop_loss:.4f} | TP: {tp_price:.4f}")
+        logging.info(f"[{STRATEGY_MODE}] {config.SYMBOL} | Price: {curr_p:.2f} | Net PNL: {pnl_net*100:.2f}% | SL: {stop_loss:.4f} ({sl_pct:.2f}%) | TP: {tp_price:.4f} (+{tp_pct:.2f}%)")
 
         if conf['use_hard_tp'] and curr_p >= tp_price:
             logging.info(f"🎯 HARD TP HIT! Menjual sebagai MAKER (0% Fee)...")
@@ -513,6 +579,8 @@ def trading_loop():
                 df = fetch_data(config.SYMBOL, conf['interval'])
                 trigger_buy = False
                 
+                weather_ratio = 1.0
+                
                 # Skenario Beli Paksa Manual
                 if force_buy:
                     trigger_buy = True
@@ -527,7 +595,16 @@ def trading_loop():
                     if is_signal:
                         trigger_buy = True
                         last = df.iloc[-2]
-                        temp_sl = c_price - (last['atr'] * conf.get("sl_atr_mult", 1.5)) 
+
+                        weather_ratio = last.get('vol_ratio', 1.0)
+                        if pd.isna(weather_ratio): weather_ratio = 1.0 # Fallback jika data kosong
+                        
+                        # (Max 2x lipat, Min 0.5x lipat)
+                        weather_ratio = max(0.5, min(weather_ratio, 2.0))
+
+                        # SL dikalikan dengan rasio cuaca. Makin liar pasar, SL makin lebar!
+                        dynamic_sl_mult = conf.get("sl_atr_mult", 1.5) * weather_ratio
+                        temp_sl = c_price - (last['atr'] * dynamic_sl_mult)
                         max_minus_price = c_price * (1 - 0.05) # Hard cap SL -5%
                         if temp_sl < max_minus_price: temp_sl = max_minus_price
                         
@@ -546,9 +623,11 @@ def trading_loop():
                             current_balance = paper_usdt_balance
                         else:
                             current_balance = get_balance().get('USDT', 0.0)
-                            
-                        # Hitung persentase dari modal
-                        trade_amount = current_balance * (getattr(config, 'RISK_PERCENTAGE', 5.0) / 100.0)
+                        base_risk = getattr(config, 'RISK_PERCENTAGE', 5.0)
+                        
+                        # Jika cuaca badai (ratio > 1), modal diturunkan. Jika sepi, modal dinaikkan.
+                        dynamic_risk = base_risk / weather_ratio
+                        trade_amount = current_balance * (dynamic_risk / 100.0)
                         
                         # MEXC punya batas minimum transaksi (biasanya $5)
                         if trade_amount < 5.0: 
