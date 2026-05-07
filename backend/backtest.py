@@ -31,6 +31,10 @@ df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
 df['vol_sma'] = ta.sma(df['volume'], length=20)
 df['adx'] = ta.adx(df['high'], df['low'], df['close'], length=14)['ADX_14']
 
+atr_sma = ta.sma(df['atr'], length=100)
+df['atr_sma'] = atr_sma.fillna(df['atr']) # Fallback jika data kurang
+df['vol_ratio'] = df['atr'] / df['atr_sma']
+
 # 4. VARIABEL SIMULASI
 balance = 1000.0 # Modal awal virtual $1000
 use_compounding = config.get_settings()['general'].get('use_compounding', False)
@@ -45,6 +49,14 @@ trades = []
 winning_trades = 0
 losing_trades = 0
 breakeven_trades = 0
+
+def is_hammer(row):
+    open_p, close_p, high_p, low_p = row['open'], row['close'], row['high'], row['low']
+    body = abs(close_p - open_p)
+    if body == 0: body = 0.000001 
+    lower_wick = min(open_p, close_p) - low_p
+    upper_wick = high_p - max(open_p, close_p)
+    return (lower_wick >= (2 * body)) and (upper_wick <= (lower_wick * 0.1))
 
 print("⚙️ Memulai Simulasi Mesin Waktu...\n")
 
@@ -111,16 +123,31 @@ for i in range(200, len(df)):
             
     # JIKA TIDAK MEMEGANG KOIN (MENCARI SINYAL)
     else:
-        # Logika Sinyal (Sederhana tanpa MTF Eksternal untuk kecepatan backtest)
         rsi_moving_up = prev['rsi'] > df.iloc[i-2]['rsi']
         is_uptrend = prev['close'] > prev['ema_200'] if conf['use_ema_200'] else True
         rsi_healthy = conf['rsi_min'] < prev['rsi'] < conf['rsi_max']
         is_trending = True if STRATEGY == "SCALP" else prev['adx'] > 25.0
         volume_breakout = prev['volume'] > (prev['vol_sma'] * conf['vol_mult'])
         
-        if is_uptrend and rsi_healthy and rsi_moving_up and is_trending and volume_breakout:
+        found_hammer = is_hammer(prev)
+        trigger_buy = False
+        
+        if is_uptrend and rsi_healthy and rsi_moving_up and is_trending:
+            if found_hammer: 
+                trigger_buy = True
+            elif prev['close'] > prev['open'] and volume_breakout: 
+                trigger_buy = True
+                
+        if trigger_buy:
+            # Hitung Rasio Cuaca
+            weather_ratio = prev.get('vol_ratio', 1.0)
+            if pd.isna(weather_ratio): weather_ratio = 1.0
+            weather_ratio = max(0.5, min(weather_ratio, 2.0))
+            
             if use_compounding:
-                usdt_per_trade = balance * (risk_percentage / 100.0)
+                base_risk = risk_percentage
+                dynamic_risk = base_risk / weather_ratio
+                usdt_per_trade = balance * (dynamic_risk / 100.0)
                 if usdt_per_trade < 5.0: usdt_per_trade = 5.0
 
             # Beli di harga open candle saat ini
@@ -128,8 +155,9 @@ for i in range(200, len(df)):
             position_size = usdt_per_trade / entry_price
             highest_p = entry_price
             
-            # Set SL Awal
-            temp_sl = entry_price - (prev['atr'] * conf.get("sl_atr_mult", 1.5))
+            # Set SL Awal Dinamis (Dikalikan Cuaca)
+            dynamic_sl_mult = conf.get("sl_atr_mult", 1.5) * weather_ratio
+            temp_sl = entry_price - (prev['atr'] * dynamic_sl_mult)
             max_sl = entry_price * 0.95 # Max -5%
             stop_loss = max_sl if temp_sl < max_sl else temp_sl
 

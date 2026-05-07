@@ -87,6 +87,7 @@ def sync_dashboard_data():
         with open(config.STATE_FILE, "r") as f:
             state_data = json.load(f)
             
+        # 1. CEK PANIC SELL DARI WEB
         if state_data.get("trigger_panic", False):
             logging.info("🚨 Sinyal PANIC SELL dari Web Dashboard diterima di main.py!")
             telegram_bot.send_message("🚨 *PANIC BUTTON WEB TRIGGERED!* 🚨\nMenutup posisi secara paksa...")
@@ -96,22 +97,25 @@ def sync_dashboard_data():
             except: 
                 curr_p = None
                 
-            # Eksekusi Jual Darurat
+            # Eksekusi Jual Darurat (Fungsi ini otomatis menghitung profit & menyimpan state!)
             execute_trade('SELL', config.USDT_AMOUNT, forced_price=curr_p)
             
-            # Reset memori bot
-            active_trade = False
-            entry_price = 0.0
+            # Reset variabel pelacakan cuaca lokal
             stop_loss = 0.0
             highest_p = 0.0
             
-            # Matikan panic di JSON
-            state_data["trigger_panic"] = False
-            state_data["active_trade"] = False
+            with open(config.STATE_FILE, "r") as fr:
+                fresh_state = json.load(fr)
+                
+            # Matikan panic di memori yang baru (fresh)
+            fresh_state["trigger_panic"] = False
             with open(config.STATE_FILE, "w") as fw:
-                json.dump(state_data, fw)
+                json.dump(fresh_state, fw)
                 
             logging.info("✅ Posisi berhasil ditutup via Web.")
+            
+            # Kembalikan state_data ke versi fresh agar sinkronisasi di bawah ini pakai data terbaru
+            state_data = fresh_state
 
         # 2. UPDATE STATUS AKTIF/JEDA
         new_status = state_data.get("is_active", True)
@@ -148,6 +152,10 @@ def sync_dashboard_data():
     }
 
 # --- FUNGSI UTILS & PRESISI ---
+def format_crypto(value: float) -> str:
+    """Mengubah float menjadi string tanpa notasi ilmiah (e) dengan presisi ketat (sampai 10 desimal)."""
+    return f"{float(value):.10f}".rstrip('0').rstrip('.')
+
 def check_spread(symbol, max_spread_percent=2.0):
     """Mengecek selisih harga Bid/Ask di bursa. Jika jaraknya > 2%, sinyal beli dibatalkan karena rawan rugi."""
     try:
@@ -407,17 +415,17 @@ def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_p
     # JALUR 2: MODE LIVE (REAL MONEY)
     # ===============================
     # Format pembulatan string WAJIB digunakan agar MEXC tidak menolak order (Error -1111)
-    price_str = "{:f}".format(round_step(price, info['price_step']))
+    price_str = format_crypto(round_step(price, info['price_step']))
     params = {'symbol': config.SYMBOL, 'side': side.upper(), 'type': order_type}
     
     if order_type == "LIMIT":
         params['price'] = price_str
-        params['quantity'] = "{:f}".format(round_step(amount / float(price_str), info['qty_step']))
+        params['quantity'] = format_crypto(round_step(amount / float(price_str), info['qty_step']))
         params['timeInForce'] = "GTC" 
 
     if side.upper() == 'BUY':
         if order_type == "MARKET":
-            params['quoteOrderQty'] = round_step(amount, info['price_step'])
+            params['quoteOrderQty'] = format_crypto(round_step(amount, info['price_step']))
         
         res = mexc_request('POST', '/api/v3/order', params)
         if not res or 'orderId' not in res:
@@ -438,8 +446,8 @@ def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_p
             hard_sl_price = round_step(entry_price * 0.985, info['price_step']) 
             sl_params = {
                 'symbol': config.SYMBOL, 'side': 'SELL', 'type': 'STOP_LOSS_LIMIT',
-                'quantity': "{:f}".format(round_step(exec_qty * 0.99, info['qty_step'])),
-                'price': "{:f}".format(hard_sl_price), 'stopPrice': "{:f}".format(hard_sl_price)
+                'quantity': format_crypto(round_step(exec_qty * 0.99, info['qty_step'])),
+                'price': format_crypto(hard_sl_price), 'stopPrice': format_crypto(hard_sl_price)
             }
             mexc_request('POST', '/api/v3/order', sl_params)
         except: pass
@@ -456,7 +464,7 @@ def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_p
         
         if qty <= 0: return None 
         
-        params['quantity'] = "{:f}".format(round_step(qty * 0.99, info['qty_step']))
+        params['quantity'] = format_crypto(round_step(qty * 0.99, info['qty_step']))
         res_sell = mexc_request('POST', '/api/v3/order', params)
         
         if res_sell and 'orderId' in res_sell:
@@ -475,7 +483,18 @@ def execute_trade(side: str, amount: float, order_type: str = "MARKET", forced_p
             logging.info(f"✅ [REAL] SELL EXECUTED | Price: {exit_price} | Net PNL: {net_pnl*100:.2f}%")
             emoji = "💰" if net_pnl > 0 else "📉"
             telegram_bot.send_message(f"{emoji} *REAL SELL EXECUTED*\nNet PNL: *{net_pnl*100:.2f}%*")
-        return res_sell
+            return res_sell
+        else:
+            logging.error(f"❌ LIVE SELL DITOLAK BURSA: {res_sell}")
+            # Jika MEXC menolak karena nilainya sudah di bawah $5 (-1013) atau saldo tidak cukup (-2010)
+            if isinstance(res_sell, dict) and res_sell.get('code') in [-1013, -2010]:
+                logging.warning("⚠️ Merelakan koin nyangkut (Dust) agar mesin bot tidak macet.")
+                active_trade = False
+                entry_price = 0.0
+                update_and_save_state()
+                telegram_bot.send_message("⚠️ *SELL Gagal: Min. $5.*\nKoin receh ditinggalkan, bot lanjut mencari target baru.")
+            
+            return res_sell
     
 def monitor_position():
     global active_trade, stop_loss, highest_p, entry_price, STRATEGY_MODE

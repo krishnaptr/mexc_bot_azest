@@ -201,7 +201,7 @@ def get_bot_stats():
         is_engine_alive = (current_time - last_heartbeat) < 15
 
         # 2. HITUNG STATISTIK DARI DATABASE
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=10)
         cursor = conn.cursor()
         
         try:
@@ -354,7 +354,7 @@ async def toggle_bot(request: Request):
 def get_trade_history():
     """Endpoint untuk Tabel Riwayat Transaksi."""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=10)
         conn.row_factory = sqlite3.Row 
         cursor = conn.cursor()
         
@@ -377,7 +377,7 @@ def get_equity_curve():
         is_dry_run = settings.get("general", {}).get("dry_run", True)
         mode_filter = "SIMULASI" if is_dry_run else "LIVE"
 
-        conn = sqlite3.connect(DB_FILE)
+        conn = sqlite3.connect(DB_FILE, timeout=10)
         cursor = conn.cursor()
         
         # Ambil semua transaksi JUAL yang sudah selesai

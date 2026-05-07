@@ -51,8 +51,7 @@ def handle_status_command(bot_engine_module, status: str):
             usdt_display, coin_display = bal.get('USDT', 0.0), bal.get(asset_name, 0.0)
         else:
             usdt_display = database.load_sim_balance()
-            # Asumsi sederhana untuk display jika ada koin nyangkut di simulasi
-            coin_display = (config.USDT_AMOUNT / entry_price) if active_trade else 0.0
+            coin_display = bot_engine_module.paper_coin_holdings if active_trade else 0.0
 
         floating_pnl_str = ""
         current_value = coin_display * current_price
@@ -65,13 +64,13 @@ def handle_status_command(bot_engine_module, status: str):
             floating_pnl_str = f"\n🔄 *PNL Berjalan (Net):* `{f_pnl_net*100:.2f}%`"
 
         pnl_info = f"\n💰 *Total Profit:* `{total_accumulated_profit*100:.2f}%` ({trade_count} trades)"
-  
+ 
         msg = (f"🤖 *BOT STATUS:* {status}\n"
                f"━━━━━━━━━━━━━━━\n"
                f"📈 Mode: `{'SIMULASI' if config.DRY_RUN else 'LIVE'}`\n"
                f"⚙️ Strategy: `{bot_engine_module.STRATEGY_MODE}`\n"
                f"🪙 Token: `{config.SYMBOL}`\n"
-               f"💵 Harga: `${current_price:.4f}`"
+               f"💵 Harga: `${current_price:.8f}`" 
                f"{floating_pnl_str}{pnl_info}\n\n"
                f"🏦 *INFO SALDO:*\n"
                f"💵 USDT: `{usdt_display:.2f}`\n"
@@ -149,17 +148,13 @@ def handle_command(bot_engine_module, msg_text: str):
                 curr_p = None
             
             send_message(f"⚠️ Menutup posisi di harga `{curr_p if curr_p else 'Market'}`...")
-            
-            # Suruh engine mengeksekusi trade jual paksa
             bot_engine_module.execute_trade('SELL', config.USDT_AMOUNT, forced_price=curr_p)
             
-            # Reset state di engine
             bot_engine_module.active_trade = False
             bot_engine_module.entry_price = 0.0
             bot_engine_module.stop_loss = 0.0
             bot_engine_module.highest_p = 0.0
             bot_engine_module.update_and_save_state()
-            
             send_message("✅ *Posisi ditutup.*")
         else:
             send_message("ℹ️ Tidak ada posisi aktif.")
@@ -168,10 +163,13 @@ def handle_command(bot_engine_module, msg_text: str):
         if msg_text in ["/stop", "/panic"]: 
             bot_engine_module.bot_active = False
             bot_engine_module.update_and_save_state()
+            bot_engine_module.trigger_scan.set() 
             send_message("🛑 *BOT STOPPED*")
 
+    # Command Mulai
     elif msg_text == "/start":
         bot_engine_module.bot_active = True
+        bot_engine_module.update_and_save_state() 
         bot_engine_module.trigger_scan.set()
         send_message("✅ *BOT STARTED* 🟢")
     

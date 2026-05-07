@@ -1,6 +1,19 @@
 # Changelog
 Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 
+## [2.4.0] - 2026-05-07
+### Added
+- **Asset Personality Configuration Guide**: Membuat standardisasi parameter (*Sweet Spots*) berdasarkan karakteristik/kepribadian koin ke dalam file terpisah (`strategy_notes.txt`). Membagi koin menjadi 4 kategori utama: *The Titans* (BTC, ETH), *Altcoins* (TON), *Stable Momentum*, dan *Meme Coins*.
+- **Backtest Engine Parity (1:1 Sync)**: Melakukan sinkronisasi besar-besaran pada `backtest.py` agar memiliki kecerdasan yang sama persis dengan mesin utama `main.py`. Menambahkan indikator Cuaca Pasar (*Weather Ratio* via ATR SMA), pendeteksi *Hammer Pattern* (`is_hammer`), dan *Stop Loss* dinamis berbasis cuaca ke dalam *loop* simulasi.
+
+### Changed
+- **"Let It Ride" Trailing Strategy**: Merombak logika profit pada koin bergejolak tinggi (Meme Coins seperti DOGS, PEPE). `use_hard_tp` kini dimatikan (`false`) secara bawaan agar bot tidak memotong profit terlalu dini saat terjadi *pump* raksasa, melainkan mengandalkan *Trailing Stop* untuk mengawal profit dari belakang.
+- **Intraday Momentum Focus (Altcoins)**: Mematikan filter makro 4H (`use_mtf: false`) pada mode TREND khusus untuk kategori Altcoin. Bot kini lebih agresif memanfaatkan ayunan momentum pendek di *timeframe* 15m yang terbukti meningkatkan *Win Rate* hingga menyentuh angka 80%+.
+- **Risk-to-Reward Ratio Overhaul**: Memperbaiki rasio SL dan TP untuk mencegah *drawdown* parah akibat *whipsaw* pasar (jebakan *pennies in front of a steamroller*). Menurunkan `sl_atr_mult` (Stop Loss lebih ketat menjadi 1.2 - 2.0) dan menyesuaikan persentase target *Take Profit* agar lebih proporsional dengan profil risiko koin.
+
+### Fixed
+- **Win Rate Illusion Bug**: Memperbaiki fenomena di mana bot memiliki *Win Rate* tinggi (80%+) namun *Net Profit* negatif. Diatasi dengan memperlebar jarak inisiasi *trailing* (`trail_start`) dan mengetatkan SL agar satu kekalahan tidak menghapus akumulasi profit dari lima kemenangan beruntun.
+
 ## [2.3.0] - 2026-04-24
 ### Added
 - **TradingView Widget Integration**: Mengintegrasikan grafik *candlestick* interaktif secara *real-time* dari bursa MEXC langsung ke halaman utama Dashboard menggunakan komponen mandiri Angular (`<app-trading-chart>`). Grafik otomatis menyesuaikan diri dengan koin yang sedang dilacak (`symbol`) dan tema antarmuka (*Dark/Light Mode*).
@@ -180,13 +193,13 @@ Semua perubahan penting pada bot trading ini akan dicatat di file ini.
 - **Telegram Notifier**: Integrasi pengiriman sinyal dan status bot ke Telegram.
 - **Simulation Mode**: Fitur Dry Run untuk testing tanpa menggunakan saldo asli.
 
-### Tips Penggunaan (Update V2.2.0):
+---
 
-* **Bahaya Drawdown (Compounding)**: Jika Anda mengaktifkan fitur Compounding (`use_compounding: True`), selalu jaga agar `risk_percentage` di bawah 10% untuk mencegah kebangkrutan saat mengalami kekalahan beruntun (*Losing Streak*).
-* **Manajemen Harapan & Fee**: Bot saat ini mengutamakan sistem Zero-Fee Maker (Antre Limit 0%), sehingga target TP sekecil 0.7% pada timeframe 5m sangat mungkin menghasilkan *Nett Profit* yang bersih.
-* **Gunakan Mesin Backtest**: JANGAN PERNAH mengubah konfigurasi secara acak. Gunakan perintah `python backtest.py` untuk menguji parameter Anda setiap kali Anda berpindah koin (Karakteristik Aset/Asset Personality).
-* **Monitoring Responsif**: Saat posisi aktif (`active_trade = True`), bot akan meningkatkan frekuensi pengecekan harga. Ini normal dan bertujuan agar *Break-Even* atau *Stop Loss* tereksekusi secepat kilat.
-* **Keamanan Shutdown**: Gunakan `Ctrl + C` di terminal agar bot sempat menjual koin secara otomatis dan mengirim "Pesan Kematian" ke Dashboard jika Anda ingin menghentikan operasi secara total.
-* **Ganti Koin Cepat**: Gunakan `/symbol BTCUSDT` untuk berpindah ke aset dengan volatilitas tinggi, namun selalu sinkronkan dengan hasil backtest.
-* **Gunakan Mode SCALP**: Untuk menangkap "Pisau Jatuh" saat pasar sedang merah/koreksi (Mean Reversion).
-* **Gunakan Mode TREND**: Untuk koin dengan kapitalisasi pasar besar (BTC/ETH) yang bergerak searah dengan filter makro (MTF 4h).
+### Tips Penggunaan (Update V2.4.0):
+
+* **Asset Personality adalah Kunci**: Selalu simpan dan pantau `strategy_notes.txt`. JANGAN gunakan parameter BTCUSDT (Titans) untuk koin tipe *Meme* (DOGS, PEPE) karena karakteristik volatilitas mereka bertolak belakang.
+* **Fitur Let it Ride (Meme Coins)**: Jika kamu memperdagangkan koin dengan riwayat lompatan harga tidak rasional (Meme Coin), selalu atur `"use_hard_tp": false`. Biarkan bot menggunakan *Trailing Stop* untuk mengawal profit agar kamu bisa menangkap pergerakan harga 10%+ secara maksimal.
+* **Gunakan Mesin Backtest**: JANGAN PERNAH mengubah koin (`/symbol`) di mode LIVE sebelum kamu mengetes parameternya di `backtest.py`. Pastikan Win Rate dan Net Profit berada di zona hijau.
+* **Bahaya Drawdown (Compounding)**: Jika kamu mengaktifkan fitur Compounding (`use_compounding: True`), selalu jaga agar `risk_percentage` di bawah 10% untuk mencegah kebangkrutan saat mengalami kekalahan beruntun (*Losing Streak*).
+* **Manajemen Harapan & Fee**: Bot saat ini mengutamakan sistem Zero-Fee Maker (Antre Limit 0%). Target TP sekecil 0.7% pada timeframe 5m sangat mungkin menghasilkan *Nett Profit* yang bersih, jangan diremehkan.
+* **Keamanan Shutdown**: Gunakan `Ctrl + C` di terminal agar bot sempat menjual koin secara otomatis dan mengirim "Pesan Kematian" ke Dashboard jika kamu ingin menghentikan operasi secara total.

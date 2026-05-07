@@ -51,7 +51,7 @@ def load_sim_balance():
 
 def init_db():
     """Membuat tabel database jika belum ada."""
-    conn = sqlite3.connect(config.DB_FILE)
+    conn = sqlite3.connect(config.DB_FILE, timeout=10)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS trades (
@@ -72,7 +72,7 @@ def init_db():
 def log_trade_to_db(strategy_mode: str, mode: str, side: str, symbol: str, price: float, gross_pnl: float = 0.0, net_pnl: float = 0.0):
     """Menyimpan riwayat transaksi (Beli/Jual) ke SQLite Database."""
     try:
-        conn = sqlite3.connect(config.DB_FILE)
+        conn = sqlite3.connect(config.DB_FILE, timeout=10)
         cursor = conn.cursor()
         
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

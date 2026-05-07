@@ -1,0 +1,189 @@
+================================================================================
+KUMPULAN PARAMETER STRATEGI BOT MEXC
+================================================================================
+PETUNJUK: Copy blok JSON di bawah ini dan paste ke dalam file settings.json 
+sesuai dengan koin yang sedang diperdagangkan.
+================================================================================
+
+# ==============================================================================
+# KATEGORI 1: THE TITANS (BTC, ETH, SOL)
+# Karakter: Digerakkan oleh institusi (Market Maker), tren panjang, banyak noise 
+# (whipsaw/ekor lilin panjang) di timeframe kecil untuk memburu Stop Loss.
+# ==============================================================================
+
+## 1A. Mode TREND (Titans) - [SANGAT DISARANKAN]
+"trend": {
+    "interval": "15m",
+    "rsi_min": 45,
+    "rsi_max": 68,
+    "vol_mult": 1.2,
+    "use_ema_200": true,
+    "tp_percent": 0.02,
+    "sl_atr_mult": 2.5,
+    "breakeven_start": 0.008,
+    "trail_start": 0.01,
+    "trail_dist": 0.005,
+    "delay_scan": 60,
+    "use_hard_tp": true,
+    "use_mtf": true,
+    "macro_interval": "4h"
+}
+
+* Catatan Parameter:
+- vol_mult: 1.2 -> WAJIB ada volume institusi (20% di atas rata-rata).
+- tp_percent: 0.02 -> Target 2% (Sangat realistis untuk koin raksasa).
+- sl_atr_mult: 2.5 -> SL napas panjang agar kebal dari gocekan Market Maker.
+- breakeven_start: 0.008 -> Amankan modal lebih cepat di profit +0.8%.
+- trail_start: 0.01 -> Mulai kunci profit otomatis di +1%.
+- trail_dist: 0.005 -> Jarak trailing 0.5%.
+
+--------------------------------------------------------------------------------
+
+## 1B. Mode SCALP (Titans) - [AGRESIF / HIGH RISK]
+"scalp": {
+    "interval": "5m",
+    "rsi_min": 25,
+    "rsi_max": 50,
+    "vol_mult": 1.2,
+    "use_ema_200": false,
+    "tp_percent": 0.005,
+    "sl_atr_mult": 2.0,
+    "breakeven_start": 0.003,
+    "trail_start": 0.004,
+    "trail_dist": 0.002,
+    "delay_scan": 10,
+    "use_hard_tp": true,
+    "use_mtf": false,
+    "macro_interval": "1h"
+}
+
+* Catatan Parameter:
+- rsi_min: 25 -> Tunggu sampai benar-benar oversold ekstrem.
+- rsi_max: 50 -> Jangan masuk jika RSI sudah di tengah.
+- vol_mult: 1.2 -> Tetap butuh dorongan volume besar.
+- tp_percent: 0.005 -> Ambil untung super cepat: 0.5% saja!
+- sl_atr_mult: 2.0 -> SL lebih lebar dari altcoin untuk hindari noise 5m.
+- breakeven_start: 0.003 -> Langsung impaskan modal jika profit +0.3%.
+
+
+# ==============================================================================
+# KATEGORI 2: THE ALTCOINS & MEMES (TON, DOGS, PEPE, WIF, ADA)
+# Karakter: Digerakkan sentimen ritel (FOMO/Panic). Sering memantul tajam saat 
+# oversold. Tren bisa naik drastis namun mudah hancur jika momentum hilang.
+# ==============================================================================
+
+## 2A. Mode TREND (Altcoins) - [MODERAT]
+"trend": {
+    "interval": "15m",
+    "rsi_min": 40,
+    "rsi_max": 72,
+    "vol_mult": 0.5,
+    "use_ema_200": true,
+    "tp_percent": 0.035,
+    "sl_atr_mult": 1.2,
+    "breakeven_start": 0.012,
+    "trail_start": 0.015,
+    "trail_dist": 0.005,
+    "delay_scan": 60,
+    "use_hard_tp": true,
+    "use_mtf": true,
+    "macro_interval": "4h"
+}
+
+* Catatan Parameter:
+- rsi_max: 72 -> Ritel suka FOMO, RSI 70+ masih bisa terus naik.
+- vol_mult: 0.5 -> Syarat volume dilonggarkan agar tidak ketinggalan kereta.
+- tp_percent: 0.035 -> Target untung besar 3.5%.
+- sl_atr_mult: 1.2 -> SL KETAT! Jika tertipu Bull Trap, langsung Cut Loss.
+- breakeven_start: 0.012 -> Amankan modal di profit +1.2%.
+- trail_start: 0.015 -> Mulai membuntuti harga di profit +1.5%.
+
+--------------------------------------------------------------------------------
+
+## 2B. Mode SCALP (Altcoins) - [SANGAT DISARANKAN / SWEET SPOT 90% WR]
+"scalp": {
+    "interval": "5m",
+    "rsi_min": 20,
+    "rsi_max": 52,
+    "vol_mult": 0.8,
+    "use_ema_200": false,
+    "tp_percent": 0.007,
+    "sl_atr_mult": 1.5,
+    "breakeven_start": 0.004,
+    "trail_start": 0.005,
+    "trail_dist": 0.002,
+    "delay_scan": 10,
+    "use_hard_tp": true,
+    "use_mtf": false,
+    "macro_interval": "1h"
+}
+
+* Catatan Parameter:
+- rsi_min: 20 -> Tangkap pisau jatuh saat ritel panik (Oversold).
+- rsi_max: 52 -> Sweet spot: Boleh masuk saat harga mulai memantul.
+- vol_mult: 0.8 -> Volume rata-rata cukup untuk memicu pantulan.
+- use_ema_200: false -> Bebas masuk melawan tren makro.
+- tp_percent: 0.007 -> Ambil untung cepat 0.7% sebelum harga turun lagi.
+- sl_atr_mult: 1.5 -> SL sangat ketat! Batasi kerugian maksimal ~2.5%.
+- breakeven_start: 0.004 -> Amankan modal secepatnya di +0.4%.
+- trail_dist: 0.002 -> Trailing super ketat (0.2%).
+
+
+# ==============================================================================
+# KATEGORI 3: ALTCOIN STABLE MOMENTUM (TON, SOL, ADA, DOT)
+# Karakter: Mengambil untung kecil tapi sangat sering.
+# ==============================================================================
+
+"trend": {
+    "interval": "15m",
+    "rsi_min": 40,
+    "rsi_max": 65,
+    "vol_mult": 0.8,
+    "use_ema_200": true,
+    "tp_percent": 0.012,
+    "sl_atr_mult": 2.0,
+    "breakeven_start": 0.006,
+    "trail_start": 0.008,
+    "trail_dist": 0.003,
+    "delay_scan": 60,
+    "use_hard_tp": true,
+    "use_mtf": false,
+    "macro_interval": "4h"
+}
+
+* Catatan Parameter:
+- tp_percent: 0.012 -> TP Kecil (1.2%) agar cepat keluar bawa profit.
+- sl_atr_mult: 2.0 -> SL cukup lebar (2.0) agar tidak mudah tergocek.
+- breakeven_start: 0.006 -> Segera pasang pagar di +0.6%.
+- trail_start: 0.008 -> Mulai kunci profit di +0.8%.
+- use_mtf: false -> MATIKAN: Fokus pada momentum intraday 15m saja.
+
+
+# ==============================================================================
+# KATEGORI 4: MEME COINS "LET IT RIDE" (DOGS, PEPE, SHIB, FLOKI)
+# Karakter: Jika sedang pump, kenaikannya bisa sangat tidak masuk akal. 
+# Jangan batasi profitnya dengan Hard TP. Biarkan Trailing Stop yang bekerja!
+# ==============================================================================
+
+"trend": {
+    "interval": "15m",
+    "rsi_min": 40,
+    "rsi_max": 65,
+    "vol_mult": 0.8,
+    "use_ema_200": true,
+    "tp_percent": 0.012,
+    "sl_atr_mult": 2.0,
+    "breakeven_start": 0.006,
+    "trail_start": 0.008,
+    "trail_dist": 0.003,
+    "delay_scan": 60,
+    "use_hard_tp": false,
+    "use_mtf": false,
+    "macro_interval": "4h"
+}
+
+* Catatan Parameter:
+- tp_percent: 0.012 -> Angka ini sekarang HANYA jadi patokan visual, tidak memicu jual.
+- trail_start: 0.008 -> Begitu profit +0.8%, Trailing mulai aktif mengikuti harga naik.
+- trail_dist: 0.003 -> Jarak kawalan trailing 0.3%.
+- use_hard_tp: false -> MATIKAN! Biarkan profit berlari sampai kehabisan napas.
